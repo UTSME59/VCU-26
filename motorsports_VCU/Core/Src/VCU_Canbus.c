@@ -8,8 +8,9 @@
 
 #include <VCU_Canbus.h>
 #include <string.h>
+#include <stdio.h>
 
-uint8_t print_canbus = 0;
+uint8_t print_canbus = 1;
 
 
 //--- CANBUS Messages ---//
@@ -322,7 +323,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
       uint16_t raw_pack_sum_0  = ((uint16_t)RxData[0] << 8);
       uint16_t raw_pack_sum_1  = (uint16_t)RxData[1];
       uint16_t raw_sum         = raw_pack_sum_0 | raw_pack_sum_1;
-      float    pack_voltage_V  = raw_sum * 0.01f;   // convert to volts
+      float    pack_voltage_V  = raw_sum * 0.1f;   // convert to volts, was originally 0.01
 
       // Byte 2: High Temperature, signed, 1 °C units
       int8_t  raw_high_temp  = (int8_t)RxData[2];
@@ -361,7 +362,7 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
     printf("CAN ERROR: 0x%08lX\n", err);
 
     if (err & HAL_CAN_ERROR_EWG) printf("  Error Warning (EWG)\n");
-    if (err & HAL_CAN_ERROR_EPV) printf("  Error Passive (EPV)\n");
+    if (err & HAL_CAN_ERROR_EPV) 	printf("  Error Passive (EPV)\n");
     if (err & HAL_CAN_ERROR_BOF) printf("  Bus-Off (BOF)\n");
 
     if (err & HAL_CAN_ERROR_STF) printf("  Stuff error\n");

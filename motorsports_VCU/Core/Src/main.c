@@ -253,6 +253,10 @@ int main(void)
 		updateFaultLEDs(&rxData.faults);
 
         break;
+
+      default:
+    	  carState = FAULT;
+    	  break;
     }
 
 
@@ -529,7 +533,7 @@ static void MX_SDADC1_Init(void)
 
   /** Set parameters for SDADC configuration 0 Register
   */
-  ConfParamStruct.InputMode = SDADC_INPUT_MODE_SE_OFFSET;
+  ConfParamStruct.InputMode = SDADC_INPUT_MODE_SE_ZERO_REFERENCE;
   ConfParamStruct.Gain = SDADC_GAIN_1;
   ConfParamStruct.CommonMode = SDADC_COMMON_MODE_VSSA;
   ConfParamStruct.Offset = 0;
@@ -625,7 +629,7 @@ static void MX_SDADC2_Init(void)
 
   /** Set parameters for SDADC configuration 0 Register
   */
-  ConfParamStruct.InputMode = SDADC_INPUT_MODE_SE_OFFSET;
+  ConfParamStruct.InputMode = SDADC_INPUT_MODE_SE_ZERO_REFERENCE;
   ConfParamStruct.Gain = SDADC_GAIN_1;
   ConfParamStruct.CommonMode = SDADC_COMMON_MODE_VSSA;
   ConfParamStruct.Offset = 0;

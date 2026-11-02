@@ -11,9 +11,7 @@
 
 // Sensor Definitions
 #define ADC_AVG_FILTER 4        /**< @brief Number of samples to average for the moving average filter. */
-#define ADC_RESOLUTION 15       /**< @brief ADC resolution in bits. */
-#define ADC_MIN 0       /**< @brief ADC resolution in bits. */
-#define ADC_MAX (2^ADC_RESOLUTION-1)       /**< @brief ADC resolution in bits. */
+#define ADC_RESOLUTION 16       /**< @brief ADC resolution in bits. */
 
 // -- THROTTLE CONFIG -- //
 #define TPS1_MIN 35000          /**< @brief The minimum raw ADC value for Throttle Position Sensor 1. */

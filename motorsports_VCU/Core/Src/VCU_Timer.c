@@ -12,6 +12,7 @@ WssTimer _wss_fl = {0};
 WssTimer _wss_fr = {0};
 
 
+
 void timerInit(TimerHandler *htimer)
 {
 	_htimer = htimer;
@@ -198,8 +199,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			break;
 
         case (uint32_t) TIM7: // 1 Hz
-			_htimer->tim7_flag = 1;
+            _htimer->tim7_flag = 1;
 
-			break;
+            break;
     }
 }

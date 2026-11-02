@@ -1,4 +1,7 @@
 #include <VCU_ADC.h>
+#include <stdio.h>
+#include <math.h>
+
 
 
 uint8_t print_throttle = 0;
@@ -15,25 +18,26 @@ void adcInit(AdcHandler *hadc)
 void readADC(AdcHandler *hadc)
 {
 	uint32_t channel;
-	uint32_t adc_val;
+	uint16_t adc_val;
 
 
 	// Read Suspot FL
 	HAL_SDADC_InjectedStart(hadc->hsdadc2);
 	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc2, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel);// - 32780;
+	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel) - 32780;
 	hadc->suspot_fl = (hadc->suspot_fl * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
 
 	// Read Throttle 2
 	HAL_SDADC_InjectedStart(hadc->hsdadc2);
 	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc2, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel);// - 32780;
+	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel) - 32780;
 	hadc->tps2 = (hadc->tps2 * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
 
 	// Read Throttle 1
 	HAL_SDADC_InjectedStart(hadc->hsdadc2);
 	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc2, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel);// - 32780;
+	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel) - 32780;
+	//printf("\n[TPS1] ADC VAL: %u, CHANNEL: %d\n", adc_val, channel);
 	hadc->tps1 = (hadc->tps1 * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
 
 
@@ -41,19 +45,19 @@ void readADC(AdcHandler *hadc)
 	// Read Suspot FR
 	HAL_SDADC_InjectedStart(hadc->hsdadc1);
 	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc1, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel);// - 32780;
+	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel) - 32780;
 	hadc->suspot_fr = (hadc->suspot_fr * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
 
 	// Read Rear Brake
 	HAL_SDADC_InjectedStart(hadc->hsdadc1);
 	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc1, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel);// - 32780;
+	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel) - 32780;
 	hadc->rear = (hadc->rear * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
 
 	// Read Front Brake
 	HAL_SDADC_InjectedStart(hadc->hsdadc1);
 	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc1, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel);// - 32780;
+	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel) - 32780;
 	hadc->front = (hadc->front * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
 
 }

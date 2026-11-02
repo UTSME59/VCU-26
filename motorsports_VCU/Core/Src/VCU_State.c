@@ -8,6 +8,7 @@
 #include <VCU_State.h>
 #include <math.h>
 #include "stm32f3xx_hal.h"
+#include <stdlib.h>
 
 
 uint16_t calculateTorque(Throttle *throttle, PM150_Data *pm150)
@@ -102,10 +103,12 @@ uint8_t checkFault(Faults *faults) {
 	}
 }
 
+static uint8_t apps_disagree_count = 0;
+
 void checkAppsBrakePlausibilityError(AppsBrakeErrors *apps_brake_errors, Throttle *throttle, Brake *brake)
 {
 
-	if (throttle->tps1_range_error || throttle->tps1_range_error) {
+	if (throttle->tps1_range_error || throttle->tps2_range_error) {
 		apps_brake_errors->tpsRange = 1;
 	}
 
@@ -114,12 +117,15 @@ void checkAppsBrakePlausibilityError(AppsBrakeErrors *apps_brake_errors, Throttl
 	}
 
 	// CHECK APPS
-	if (abs(throttle->tps1 - throttle->tps2) > 10) {
-		apps_brake_errors->apps = 1;
+	if (abs((int32_t)throttle->tps1 - (int32_t)throttle->tps2) > 10) {              //added in32_t since abs wants signed, 10 is from t.4.2
+			if (apps_disagree_count < 5){											// 5 since run at 40hz, rules say 100ms
+				apps_disagree_count++;												//T.4.2.5
+			}
 	}
-	else {
-		apps_brake_errors->apps = 0;
+	else{
+			apps_disagree_count = 0;
 	}
+			apps_brake_errors->apps = (apps_disagree_count >= 5);
 
 	// CHECK APPS BRK
 	if (brake->avg > BRAKE_PRESSURE_APPS_THRESHOLD && throttle->pos > 25) {
