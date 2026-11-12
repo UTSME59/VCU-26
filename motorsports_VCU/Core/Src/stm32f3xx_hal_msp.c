@@ -176,9 +176,9 @@ void HAL_SDADC_MspInit(SDADC_HandleTypeDef* hsdadc)
     /**SDADC1 GPIO Configuration
     PE8     ------> SDADC1_AIN8P
     PE9     ------> SDADC1_AIN7P
-    PE10     ------> SDADC1_AIN2P
+    PE11     ------> SDADC1_AIN1P
     */
-    GPIO_InitStruct.Pin = BRAKE_FRONT_IN_Pin|BRAKE_REAR_IN_Pin|SUS_POT_FR_IN_Pin;
+    GPIO_InitStruct.Pin = BRAKE_FRONT_IN_Pin|BRAKE_REAR_IN_Pin|CHARGE_EN_IN_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -199,9 +199,8 @@ void HAL_SDADC_MspInit(SDADC_HandleTypeDef* hsdadc)
     /**SDADC2 GPIO Configuration
     PE12     ------> SDADC2_AIN3P
     PE13     ------> SDADC2_AIN2P
-    PE14     ------> SDADC2_AIN1P
     */
-    GPIO_InitStruct.Pin = TPS1_IN_Pin|TPS2_IN1_Pin|SUSPOT_FL_IN_Pin;
+    GPIO_InitStruct.Pin = TPS1_IN_Pin|TPS2_IN1_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -232,9 +231,9 @@ void HAL_SDADC_MspDeInit(SDADC_HandleTypeDef* hsdadc)
     /**SDADC1 GPIO Configuration
     PE8     ------> SDADC1_AIN8P
     PE9     ------> SDADC1_AIN7P
-    PE10     ------> SDADC1_AIN2P
+    PE11     ------> SDADC1_AIN1P
     */
-    HAL_GPIO_DeInit(GPIOE, BRAKE_FRONT_IN_Pin|BRAKE_REAR_IN_Pin|SUS_POT_FR_IN_Pin);
+    HAL_GPIO_DeInit(GPIOE, BRAKE_FRONT_IN_Pin|BRAKE_REAR_IN_Pin|CHARGE_EN_IN_Pin);
 
     /* USER CODE BEGIN SDADC1_MspDeInit 1 */
 
@@ -251,9 +250,8 @@ void HAL_SDADC_MspDeInit(SDADC_HandleTypeDef* hsdadc)
     /**SDADC2 GPIO Configuration
     PE12     ------> SDADC2_AIN3P
     PE13     ------> SDADC2_AIN2P
-    PE14     ------> SDADC2_AIN1P
     */
-    HAL_GPIO_DeInit(GPIOE, TPS1_IN_Pin|TPS2_IN1_Pin|SUSPOT_FL_IN_Pin);
+    HAL_GPIO_DeInit(GPIOE, TPS1_IN_Pin|TPS2_IN1_Pin);
 
     /* USER CODE BEGIN SDADC2_MspDeInit 1 */
 

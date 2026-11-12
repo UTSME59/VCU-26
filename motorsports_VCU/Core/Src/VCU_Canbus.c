@@ -10,7 +10,9 @@
 #include <string.h>
 #include <stdio.h>
 
-uint8_t print_canbus = 1;
+extern volatile uint8_t start_btn, regen_sw, tc_sw;
+
+uint8_t print_canbus = 0;
 
 
 //--- CANBUS Messages ---//
@@ -126,16 +128,12 @@ void sendThrottlePosition(CAN_HandleTypeDef *hcan, Throttle *throttle, MessagePr
 	TxData[0] = (uint8_t)(throttle->pos & 0xff);
 	TxData[1] = (uint8_t)(throttle->tps1 & 0xff);
 	TxData[2] = (uint8_t)(throttle->tps2 & 0xff);
-	TxData[3] = 0;
-	TxData[4] = 0;
-	TxData[5] = 0;
-	TxData[6] = 0;
-	TxData[7] = 0;
+
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
 
-void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, MessagePriority msgPriority)
+void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, CarState carState, MessagePriority msgPriority)
 {
 	CAN_TxHeaderTypeDef   TxHeader;
 	uint8_t               TxData[Tx_BRAKE_DLC];
@@ -153,6 +151,8 @@ void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, MessagePriority ms
 	TxData[3] = ((brake->rear) & 0xff);
 	TxData[4] = ((brake->front  >> 8) & 0xff);
 	TxData[5] = ((brake->front) & 0xff);
+	TxData[6] = (uint8_t) carState;					//added to copy gavin 2025
+	TxData[7] = (carState == RTD) ? 1 : 0;          //since buzzer reads off 0x245 byte 7
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
@@ -160,7 +160,7 @@ void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, MessagePriority ms
 void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_brake_error, CarState carState, MessagePriority msgPriority)
 {
 	CAN_TxHeaderTypeDef   TxHeader;
-	uint8_t               TxData[Tx_TORQUE_DLC];
+	uint8_t               TxData[Tx_TORQUE_DLC] = {0};			//wasnt initialized
 	uint32_t              TxMailbox;
 
 	// Torque
@@ -189,10 +189,10 @@ void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_br
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
 
-void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, Suspot *suspot, MessagePriority msgPriority)
+void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriority)
 {
 	CAN_TxHeaderTypeDef   TxHeader;
-	uint8_t               TxData[Tx_SENSOR_DATA_DLC];
+	uint8_t               TxData[Tx_SENSOR_DATA_DLC] = {0};
 	uint32_t              TxMailbox;
 
 	// Sensor Data
@@ -201,10 +201,8 @@ void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, Suspot *suspot, MessagePr
 	TxHeader.IDE = CAN_ID_STD;
 	TxHeader.DLC = Tx_SENSOR_DATA_DLC;
 
-	TxData[0] = (uint8_t) (suspot->fr & 0xFF);
-	TxData[1] = (uint8_t) ((suspot->fr >> 8) & 0xFF);
-	TxData[2] = (uint8_t) (suspot->fl & 0xFF);
-	TxData[3] = (uint8_t) ((suspot->fl >> 8) & 0xFF);
+	// Bytes 0-3 were suspension pot FR/FL. Those sensors now go to the C185, so these bytes are
+	// sent as 0 and the wheel speeds stay in bytes 4-7 (frame layout unchanged for loggers).
 	TxData[4] = (uint8_t) (wss->fr & 0xFF);
 	TxData[5] = (uint8_t) ((wss->fr >> 8) & 0xFF);
 	TxData[6] = (uint8_t) (wss->fl & 0xFF);
@@ -225,6 +223,8 @@ void sendState(CAN_HandleTypeDef *hcan, AppsBrakeErrors *apps_brake_errors, CarS
 	TxHeader.RTR = CAN_RTR_DATA;
 	TxHeader.IDE = CAN_ID_STD;
 	TxHeader.DLC = Tx_STATE_DLC;
+	TxData[6] = (start_btn << 0) | (regen_sw << 1) | (tc_sw << 2);   // digital inputs
+	TxData[7] = 0;                                                   // spare
 
 	TxData[0] = (uint8_t) carState;
 	TxData[1] = apps_brake_errors->appsBrakePlausibility;

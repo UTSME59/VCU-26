@@ -15,51 +15,55 @@ void adcInit(AdcHandler *hadc)
 	_hadc = hadc;
 }
 
+// Counts every lost/failed SDADC conversion. Watch it in Live Expressions - it should stay flat.
+volatile uint32_t sdadc_err_count = 0;
+
+static void adcFilter(uint16_t *dst, uint32_t raw)
+{
+	uint16_t v = (uint16_t)(raw - 32780);
+	*dst = (uint16_t)((*dst * (ADC_AVG_FILTER - 1) + v) / ADC_AVG_FILTER);
+}
+
+// One JSWSTART converts the whole injected group (every channel selected in the .ioc).
+// Results are routed by the channel number tagged in JDATAR, not by read order, so a
+// lost JEOC (overrun caused by interrupt latency) can no longer shift values between signals.
+// Any HAL failure calls InjectedStop, which returns the HAL state to READY - previously a
+// single missed JEOC left the handle stuck in STATE_INJ forever and every read returned 0.
+static void readGroup(AdcHandler *hadc, SDADC_HandleTypeDef *h)
+{
+	uint32_t ch;
+	uint32_t raw;
+
+	if (HAL_SDADC_InjectedStart(h) != HAL_OK) {
+		HAL_SDADC_InjectedStop(h);
+		sdadc_err_count++;
+		return;
+	}
+
+	for (uint32_t i = 0; i < h->InjectedChannelsNbr; i++) {
+		if (HAL_SDADC_PollForInjectedConversion(h, 5) != HAL_OK) {
+			HAL_SDADC_InjectedStop(h);
+			sdadc_err_count++;
+			return;
+		}
+		raw = HAL_SDADC_InjectedGetValue(h, &ch);
+
+		// Pin -> channel mapping from EV_VCU.ioc
+		if (h == hadc->hsdadc2) {
+			if      (ch == 3) adcFilter(&hadc->tps1, raw);       // PE12 TPS1
+			else if (ch == 2) adcFilter(&hadc->tps2, raw);       // PE13 TPS2
+		} else {
+			if      (ch == 8) adcFilter(&hadc->front, raw);      // PE8  BRAKE_FRONT
+			else if (ch == 7) adcFilter(&hadc->rear, raw);       // PE9  BRAKE_REAR
+			else if (ch == 1) adcFilter(&hadc->charge_en, raw);  // PE11 AIN4 CHARGE_EN_IN
+		}
+	}
+}
+
 void readADC(AdcHandler *hadc)
 {
-	uint32_t channel;
-	uint16_t adc_val;
-
-
-	// Read Suspot FL
-	HAL_SDADC_InjectedStart(hadc->hsdadc2);
-	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc2, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel) - 32780;
-	hadc->suspot_fl = (hadc->suspot_fl * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
-
-	// Read Throttle 2
-	HAL_SDADC_InjectedStart(hadc->hsdadc2);
-	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc2, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel) - 32780;
-	hadc->tps2 = (hadc->tps2 * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
-
-	// Read Throttle 1
-	HAL_SDADC_InjectedStart(hadc->hsdadc2);
-	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc2, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc2, &channel) - 32780;
-	//printf("\n[TPS1] ADC VAL: %u, CHANNEL: %d\n", adc_val, channel);
-	hadc->tps1 = (hadc->tps1 * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
-
-
-
-	// Read Suspot FR
-	HAL_SDADC_InjectedStart(hadc->hsdadc1);
-	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc1, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel) - 32780;
-	hadc->suspot_fr = (hadc->suspot_fr * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
-
-	// Read Rear Brake
-	HAL_SDADC_InjectedStart(hadc->hsdadc1);
-	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc1, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel) - 32780;
-	hadc->rear = (hadc->rear * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
-
-	// Read Front Brake
-	HAL_SDADC_InjectedStart(hadc->hsdadc1);
-	HAL_SDADC_PollForInjectedConversion(hadc->hsdadc1, 1000);
-	adc_val = HAL_SDADC_InjectedGetValue(hadc->hsdadc1, &channel) - 32780;
-	hadc->front = (hadc->front * (ADC_AVG_FILTER - 1) + adc_val) / ADC_AVG_FILTER;
-
+	readGroup(hadc, hadc->hsdadc2);   // TPS1, TPS2
+	readGroup(hadc, hadc->hsdadc1);   // BRAKE_FRONT, BRAKE_REAR, CHARGE_EN
 }
 
 
@@ -68,7 +72,7 @@ void readADC_test(AdcHandler *hadc) {
 	int16_t adc_val;
 	uint32_t error;
 
-	// Read Suspot FL
+	// SDADC2 group
 	printf("\nSDADC2\n");
 	printf("\nstate (begin): %d\n", hadc->hsdadc2->State);
 
@@ -104,7 +108,7 @@ void readADC_test(AdcHandler *hadc) {
 
 
 
-	// Read Suspot FL
+	// SDADC1 group
 	printf("\nSDADC1\n");
 
 	printf("state (begin): %d\n", hadc->hsdadc1->State);
@@ -144,32 +148,34 @@ void readADC_test(AdcHandler *hadc) {
 void updateThrottlePosition(AdcHandler *hadc, Throttle *throttle)
 {
 	uint32_t adc_val;
+	static uint8_t tps1_oor = 0, tps2_oor = 0;
 
 	// Convert Throttle Value to Position
 	adc_val = constrain(hadc->tps1, TPS1_MIN, TPS1_MAX);
 	throttle->tps1 = map(adc_val, TPS1_MIN, TPS1_MAX, TPS_POS_MIN, TPS_POS_MAX);
 
-
 	adc_val = constrain(hadc->tps2, TPS2_MIN, TPS2_MAX);
 	throttle->tps2 = map(adc_val, TPS2_MIN, TPS2_MAX, TPS_POS_MIN, TPS_POS_MAX);
 
-
 	throttle->pos = (throttle->tps1 + throttle->tps2) / 2;
 
-	// RANGE CHECK
-	uint16_t adc_min = SENSOR_MIN * pow(2, ADC_RESOLUTION);
-	uint16_t adc_max = SENSOR_MAX * pow(2, ADC_RESOLUTION);
-	if (hadc->tps1 < adc_min || hadc->tps1 > adc_max) {
-		throttle->tps1_range_error = 1;
-	}
-	if (hadc->tps2 < adc_min || hadc->tps2 > adc_max) {
-		throttle->tps2_range_error = 1;
-	}
+	// Range check: must persist 5 samples at 40 Hz (>100 ms) before latching (T.4.2.5)
+	uint32_t adc_min = (uint32_t)(SENSOR_MIN * (1u << ADC_RESOLUTION));
+	uint32_t adc_max = (uint32_t)(SENSOR_MAX * (1u << ADC_RESOLUTION));
+
+	if (hadc->tps1 < adc_min || hadc->tps1 > adc_max) { if (tps1_oor < 5) tps1_oor++; }
+	else tps1_oor = 0;
+	if (hadc->tps2 < adc_min || hadc->tps2 > adc_max) { if (tps2_oor < 5) tps2_oor++; }
+	else tps2_oor = 0;
+
+	if (tps1_oor >= 5) throttle->tps1_range_error = 1;
+	if (tps2_oor >= 5) throttle->tps2_range_error = 1;
 }
 
 void updateBrakePressure(AdcHandler *hadc, Brake *brake)
 {
-	int16_t adc_val;
+	uint32_t adc_val;   // was int16_t: raw > 32767 wrapped negative -> pressure read 0
+	static uint8_t front_oor = 0, rear_oor = 0;
 
 	// Convert Brake Value to Pressure
 	adc_val = constrain(hadc->front, BRAKE_FRONT_MIN, BRAKE_FRONT_MAX);
@@ -180,30 +186,18 @@ void updateBrakePressure(AdcHandler *hadc, Brake *brake)
 
 	brake->avg = (brake->front + brake->rear) / 2;
 
+	// Range check: must persist 5 samples at 40 Hz (>100 ms) before latching (T.4.3.3)
+	uint32_t adc_min = (uint32_t)(SENSOR_MIN * (1u << ADC_RESOLUTION));
+	uint32_t adc_max = (uint32_t)(SENSOR_MAX * (1u << ADC_RESOLUTION));
 
-	// Range Check
-	uint16_t adc_min = SENSOR_MIN * pow(2, ADC_RESOLUTION);
-	uint16_t adc_max = SENSOR_MAX * pow(2, ADC_RESOLUTION);
-	if (hadc->front < adc_min || hadc->front > adc_max) {
-		brake->front_range_error = 1;
-	}
-	if (hadc->rear < adc_min || hadc->rear > adc_max) {
-		brake->rear_range_error = 1;
-	}
+	if (hadc->front < adc_min || hadc->front > adc_max) { if (front_oor < 5) front_oor++; }
+	else front_oor = 0;
+	if (hadc->rear < adc_min || hadc->rear > adc_max)   { if (rear_oor < 5) rear_oor++; }
+	else rear_oor = 0;
+
+	if (front_oor >= 5) brake->front_range_error = 1;
+	if (rear_oor  >= 5) brake->rear_range_error  = 1;
 }
-
-void updateSuspot(AdcHandler *hadc, Suspot *suspot)
-{
-	int16_t adc_val;
-
-	// Convert Suspot to Distance
-	adc_val = constrain(hadc->suspot_fl, SUSPOT_FL_MIN, SUSPOT_FL_MAX);
-	suspot->fl = map(adc_val, SUSPOT_FL_MIN, SUSPOT_FL_MAX, SUSPOT_DIST_MIN, SUSPOT_DIST_MAX);
-
-	adc_val = constrain(hadc->suspot_fr, SUSPOT_FR_MIN, SUSPOT_FR_MAX);
-	suspot->fr = map(adc_val, SUSPOT_FR_MIN, SUSPOT_FR_MAX, SUSPOT_DIST_MIN, SUSPOT_DIST_MAX);
-}
-
 
 // NEED TO DELETE AND FIX FUNCTION
 //apps_brake_errors.appsBrakePlausibility = 0;

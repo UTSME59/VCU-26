@@ -45,7 +45,7 @@ typedef struct CANBUSRXDATA {
 #define Tx_THROTTLE_DLC 3
 
 #define Tx_BRAKE_ID 0x245
-#define Tx_BRAKE_DLC 6
+#define Tx_BRAKE_DLC 8
 
 #define Tx_SENSOR_DATA_ID 0x246
 #define Tx_SENSOR_DATA_DLC 8
@@ -54,7 +54,7 @@ typedef struct CANBUSRXDATA {
 #define Tx_SWITCH_DLC 2
 
 #define Tx_STATE_ID 0x124
-#define Tx_STATE_DLC 6
+#define Tx_STATE_DLC 8
 
 //uint8_t canIdList[CAN_ID_LIST_LENGTH] = {CAN_ID_LIST};
 
@@ -65,8 +65,8 @@ void configFilters(CAN_HandleTypeDef *hcan, const uint16_t *idList, uint16_t len
 // Trensmit Function
 void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_brake_error, CarState carState, MessagePriority msgPriority);
 void sendThrottlePosition(CAN_HandleTypeDef *hcan, Throttle *throttle, MessagePriority msgPriority);
-void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, MessagePriority msgPriority);
-void sendSensorData(CAN_HandleTypeDef *hcan, Wss *Wss, Suspot *suspot, MessagePriority msgPriority);
+void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, CarState carState, MessagePriority msgPriority);
+void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriority);
 void sendStartSw(CAN_HandleTypeDef *hcan, MessagePriority msgPriority);
 void sendState(CAN_HandleTypeDef *hcan, AppsBrakeErrors *apps_brake_errors, CarState carState, MessagePriority msgPriority);
 void CAN_PrintLEC(CAN_HandleTypeDef *hcan);

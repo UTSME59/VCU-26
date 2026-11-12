@@ -100,14 +100,6 @@ typedef struct BRAKE
 	uint16_t avg;   /**< @brief Averaged brake pressure. */
 } Brake;
 
-/** @brief Holds processed data for the suspension potentiometer sensors. */
-typedef struct SUSPOT
-{
-    uint16_t fl; /**< @brief Processed front left suspot distance. */
-    uint16_t fr;  /**< @brief Processed front right suspot distance. */
-} Suspot;
-
-
 /** @brief Holds processed data for the wheel speed sensor potentiometer sensors. */
 typedef struct WSS
 {
