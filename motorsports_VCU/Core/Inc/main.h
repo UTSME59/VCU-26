@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define START_BUTTON_PIN_Pin GPIO_PIN_2
+#define START_BUTTON_PIN_GPIO_Port GPIOE
 #define Regen_Switch_Pin GPIO_PIN_3
 #define Regen_Switch_GPIO_Port GPIOE
 #define TC_Switch_Pin GPIO_PIN_5
@@ -77,8 +79,6 @@ void Error_Handler(void);
 #define BRAKE_FRONT_IN_GPIO_Port GPIOE
 #define BRAKE_REAR_IN_Pin GPIO_PIN_9
 #define BRAKE_REAR_IN_GPIO_Port GPIOE
-#define CHARGE_EN_IN_Pin GPIO_PIN_11
-#define CHARGE_EN_IN_GPIO_Port GPIOE
 #define TPS1_IN_Pin GPIO_PIN_12
 #define TPS1_IN_GPIO_Port GPIOE
 #define TPS2_IN1_Pin GPIO_PIN_13
@@ -87,8 +87,8 @@ void Error_Handler(void);
 #define WHL_SPEED_FR_GPIO_Port GPIOA
 #define WHL_SPEED_FL_Pin GPIO_PIN_11
 #define WHL_SPEED_FL_GPIO_Port GPIOA
-#define START_BUTTON_PIN_Pin GPIO_PIN_8
-#define START_BUTTON_PIN_GPIO_Port GPIOB
+#define CHARGE_EN_IN_Pin GPIO_PIN_8
+#define CHARGE_EN_IN_GPIO_Port GPIOB
 #define BSPD_FAULT_IN_Pin GPIO_PIN_9
 #define BSPD_FAULT_IN_GPIO_Port GPIOB
 
