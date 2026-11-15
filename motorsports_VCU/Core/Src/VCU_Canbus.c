@@ -204,6 +204,25 @@ void sendTorqueCommand(CAN_HandleTypeDef *hcan, Torque *torque, uint8_t apps_bra
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
 
+void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, MessagePriority msgPriority) {
+	CAN_TxHeaderTypeDef TxHeader = {0};
+	uint8_t 			TxData[Tx_TORQUE_LOG_DLC] = {0};
+	uint32_t 			Txmailbox;
+
+	TxHeader.StdId = Tx_TORQUE_LOG_ID;
+	TxHeader.RTR = CAN_RTR_DATA;
+	TxHeader.IDE = CAN_ID_STD;
+	TxHeader.DLC = Tx_TORQUE_LOG_DLC;
+
+	TxData[0] = (uint8_t)(torque->driver_request & 0xFF);
+	TxData[1] = (uint8_t)(torque->driver_request >> 8);
+	TxData[2] = (uint8_t)(torque->power_limit & 0xFF);
+	TxData[3] = (uint8_t)(torque->power_limit >> 8);
+
+	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
+}
+
+
 void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriority)
 {
 	CAN_TxHeaderTypeDef   TxHeader;
