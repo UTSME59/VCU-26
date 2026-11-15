@@ -61,6 +61,8 @@ TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 
 /* USER CODE BEGIN PV */
+#warning global variables created to live debug
+	CarState carState = IDLE;
 	Throttle throttle = {0};
 	Brake brake = {0};
 	Wss wss = {0};
@@ -141,7 +143,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-		CarState carState = IDLE;
+  carState = IDLE;
 
   /* USER CODE END 1 */
 

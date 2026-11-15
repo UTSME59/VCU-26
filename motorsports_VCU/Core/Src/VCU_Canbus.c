@@ -12,6 +12,9 @@
 
 extern volatile uint8_t start_btn, regen_sw, tc_sw;
 
+#warning added to live debug inverter enable not being received by MC
+volatile uint8_t debug_inverter_enable = 0;
+
 uint8_t print_canbus = 0;
 
 
@@ -185,6 +188,9 @@ void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_br
 	TxData[4] = 0; //Forward mode
 	TxData[6] = 0;
 	TxData[7] = 0;
+
+# warning added to live debug inverter enable not received by MC
+	debug_inverter_enable = TxData[5];
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
