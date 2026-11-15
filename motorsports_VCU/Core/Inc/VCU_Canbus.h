@@ -51,7 +51,7 @@ typedef struct CANBUSRXDATA {
 #define Tx_SENSOR_DATA_ID 0x246
 #define Tx_SENSOR_DATA_DLC 8
 
-#define Tx_TORQUE_LOG_UD 0x247
+#define Tx_TORQUE_LOG_ID 0x247
 #define Tx_TORQUE_LOG_DLC 4
 
 #define Tx_SWITCH_ID 0x650
@@ -71,7 +71,7 @@ void sendTorqueCommand(CAN_HandleTypeDef *hcan, Torque *torque, uint8_t apps_bra
 void sendThrottlePosition(CAN_HandleTypeDef *hcan, Throttle *throttle, MessagePriority msgPriority);
 void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, CarState carState, MessagePriority msgPriority);
 void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriority);
-void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Throttle *throttle, Torque *torque, PowerLimiter *limiter, MessagePriority msgPriority);
+void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, MessagePriority msgPriority);
 void sendStartSw(CAN_HandleTypeDef *hcan, MessagePriority msgPriority);
 void sendState(CAN_HandleTypeDef *hcan, AppsBrakeErrors *apps_brake_errors, CarState carState, MessagePriority msgPriority);
 void CAN_PrintLEC(CAN_HandleTypeDef *hcan);
