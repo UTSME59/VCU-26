@@ -160,7 +160,7 @@ void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, CarState carState,
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
 
-void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_brake_error, CarState carState, MessagePriority msgPriority)
+void sendTorqueCommand(CAN_HandleTypeDef *hcan, Torque *torque, uint8_t apps_brake_error, CarState carState, MessagePriority msgPriority)
 {
 	CAN_TxHeaderTypeDef   TxHeader;
 	uint8_t               TxData[Tx_TORQUE_DLC] = {0};			//wasnt initialized
@@ -172,25 +172,34 @@ void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_br
 	TxHeader.IDE = CAN_ID_STD;
 	TxHeader.DLC = Tx_TORQUE_DLC;
 
+	uint16_t command = torque->driver_request;
+
+	if (torque->power_limit < command) {
+		command = torque->power_limit;
+	}
+
+	if (command > TORQUE_MAX) {
+		command = TORQUE_MAX;
+	}
+
 	if (apps_brake_error){
-		torque = 0;
+		command = 0;
 	}
 
 	if (carState == RTD) {
 		TxData[5] = 1; // Enable inverter
 	}
 
+	torque->command = command;
+
 	// Transmit Torque
-	TxData[0] = (uint8_t)(torque & 0xFF); // Low Byte
-	TxData[1] = (uint8_t)((torque >> 8) & 0xFF); // High Byte
+	TxData[0] = (uint8_t)(command & 0xFF); // Low Byte
+	TxData[1] = (uint8_t)((command >> 8) & 0xFF); // High Byte
 	TxData[2] = 0;
 	TxData[3] = 0;
 	TxData[4] = 0; //Forward mode
 	TxData[6] = 0;
 	TxData[7] = 0;
-
-# warning added to live debug inverter enable not received by MC
-	debug_inverter_enable = TxData[5];
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
@@ -296,8 +305,27 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	printf("HAL_CAN_GetRxMessage() Failed\n");
 	HAL_CAN_ErrorCallback(hcan);
 	Rx_Error_Handler(hcan);
+	return;
   }
 
+  if(RxHeader.StdId == Rx_BMS_POWER_ID) {
+	  uint16_t raw_current = ((uint16_t)RxData[0] << 8 | RxData[1]);
+	  uint16_t raw_voltage = ((uint16_t)RxData[2] << 8 | RxData[3]);
+
+	  int32_t signed_current;
+
+	  if ((raw_current & 0x8000) != 0) {
+		  signed_current = (int32_t)raw_current - 65536;
+	  } else {
+		  signed_current = (int32_t)raw_current;
+	  }
+
+	  _rxData->orion.pack_current_a = signed_current * 0.1;
+	  _rxData->orion.pack_instant_voltage_v = raw_voltage * 0.1;
+	  _rxData->orion.power_received_ms = HAL_GetTick();
+	  _rxData->orion.power_sequence++;
+	  _rxData->orion.power_received = 1;
+  }
 
   if (RxHeader.StdId == Rx_C185_0_ID) {
 //	  printf("Received C185_0\n");
@@ -351,9 +379,19 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
   // MC Message for Motor RPM
   if (RxHeader.StdId == Rx_PDM_2_ID) {
-	  // Motor Speed (bytes 4-5)
-	  int16_t mc_rpm_raw = (int16_t)(RxData[4] | (RxData[5] << 8));
-	  _rxData->pm150.mc_rpm = mc_rpm_raw * (-1);
+
+	  uint16_t raw_speed = ((uint16_t)RxData[5] << 8) | RxData[4];
+	  int32_t signed_speed;
+
+	  if ((raw_speed & 0x8000) != 0) {
+		  signed_speed = (int32_t)raw_speed - 65536;
+	  } else {
+		  signed_speed = (int32_t)raw_speed;
+	  }
+
+	  // Multipled by -1 due to motor reverse direction (vehicle forwards)
+	  _rxData->pm150.mc_rpm = -signed_speed;
+
   }
 
   if (print_canbus){

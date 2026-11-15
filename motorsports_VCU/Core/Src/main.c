@@ -64,6 +64,7 @@ TIM_HandleTypeDef htim7;
 #warning global variables created to live debug
 	CarState carState = IDLE;
 	Throttle throttle = {0};
+	Torque torque = {0};
 	Brake brake = {0};
 	Wss wss = {0};
 	AppsBrakeErrors apps_brake_errors = {0};
@@ -91,6 +92,12 @@ TIM_HandleTypeDef htim7;
 		&htim7,
 		0,0,0,0
 	  };
+
+	PowerLimiter powerLimiter = {
+    .target_kw = POWER_TARGET_KW,
+    .kp = POWER_KP,
+    .ki = POWER_KI
+	};
 
 /* USER CODE END PV */
 
@@ -183,8 +190,6 @@ int main(void)
 	  ITM->TER = 0x1;
 	  // Configure ITM Control Register
 	  ITM->TCR = 0x1000D;
-
-	  uint16_t torque = 0;
 
 	  // Sensors
 	  /*Throttle throttle = {0};
@@ -339,9 +344,26 @@ int main(void)
 			// Send Throttle
 			if(critical_counter % total_critical == 0) {
 
-				// Calculate Torque Value
-				torque = calculateTorque(&throttle, &rxData.pm150);
-				sendTorqueCommand(&hcan, torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
+				OrionData battery_sample = {0};
+				PM150_Data motor_sample = {0};
+
+				uint32_t interrupt_state = __get_PRIMASK();
+				__disable_irq();
+
+				battery_sample.pack_current_a = rxData.orion.pack_current_a;
+				battery_sample.pack_instant_voltage_v =rxData.orion.pack_instant_voltage_v;
+				battery_sample.power_received_ms = rxData.orion.power_received_ms;
+				battery_sample.power_sequence = rxData.orion.power_sequence;
+				battery_sample.power_received = rxData.orion.power_received;
+				motor_sample.mc_rpm = rxData.pm150.mc_rpm;
+
+				__set_PRIMASK(interrupt_state);
+
+				uint8_t drive_allowed = carState == RTD && !apps_brake_errors.appsBrakePlausibility;
+
+				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, HAL_GetTick());
+
+				sendTorqueCommand(&hcan, &torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
 			}
 
 			// Send Brake

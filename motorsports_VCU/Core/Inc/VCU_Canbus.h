@@ -32,9 +32,10 @@ typedef struct CANBUSRXDATA {
 #define Rx_PDM_3_ID 0x534
 #define Rx_C185_0_ID 0x700 // Wheel Speeds
 #define Rx_C185_1_ID 0x701 // Slip Ratio, etc.
+#define Rx_BMS_POWER_ID 0x6B0
 
-#define CAN_ID_LIST_LENGTH 6
-#define CAN_ID_LIST Rx_PDM_0_ID, Rx_PDM_1_ID, Rx_PDM_2_ID, Rx_PDM_3_ID, Rx_C185_0_ID, Rx_C185_1_ID
+#define CAN_ID_LIST_LENGTH 7
+#define CAN_ID_LIST Rx_PDM_0_ID, Rx_PDM_1_ID, Rx_PDM_2_ID, Rx_PDM_3_ID, Rx_C185_0_ID, Rx_C185_1_ID, Rx_BMS_POWER_ID
 
 
 // CANBUS Transmit IDs
@@ -63,7 +64,7 @@ void canInit(CanbusRxData *rxData);
 void configFilters(CAN_HandleTypeDef *hcan, const uint16_t *idList, uint16_t length);
 
 // Trensmit Function
-void sendTorqueCommand(CAN_HandleTypeDef *hcan, uint16_t torque, uint8_t apps_brake_error, CarState carState, MessagePriority msgPriority);
+void sendTorqueCommand(CAN_HandleTypeDef *hcan, Torque *torque, uint8_t apps_brake_error, CarState carState, MessagePriority msgPriority);
 void sendThrottlePosition(CAN_HandleTypeDef *hcan, Throttle *throttle, MessagePriority msgPriority);
 void sendBrakePressure(CAN_HandleTypeDef *hcan, Brake *brake, CarState carState, MessagePriority msgPriority);
 void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriority);

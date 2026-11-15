@@ -4,15 +4,21 @@
 
 #include <stdint.h>
 
-#define TPS_POS_MIN 0          /**< @brief The minimum mapped value for Throttle Position Sensor. */
-#define TPS_POS_MAX 100       /**< @brief The maximum mapped value for Throttle Position Sensor. */
+#define TPS_POS_MIN 0          					/**< @brief The minimum mapped value for Throttle Position Sensor. */
+#define TPS_POS_MAX 100       			    	/**< @brief The maximum mapped value for Throttle Position Sensor. */
 
 
 // -- TORQUE CONFIG -- //
-#define TORQUE_MAX 2290          /**< @brief The maximum torque command value to be sent. */
-#define BRAKE_PRESSURE_START_THRESHOLD 500 /**< @brief Pressure threshold to trigger RTD. */
-#define BRAKE_PRESSURE_APPS_THRESHOLD 500 /**< @brief Pressure threshold to trigger APPS/Brake plausibility check. */
-#define POWER_LIMIT 75000.0f          /**< @brief The maximum torque command value to be sent. */
+#define TORQUE_MAX 						2200    /**< @brief The maximum torque command value to be sent. */
+#define BRAKE_PRESSURE_START_THRESHOLD  500 	/**< @brief Pressure threshold to trigger RTD. */
+#define BRAKE_PRESSURE_APPS_THRESHOLD   500  	/**< @brief Pressure threshold to trigger APPS/Brake plausibility check. */
+
+#define POWER_TARGET_KW					75
+#define POWER_CURRENT_SIGN				1	    /**< @brief The BMS current direction (1: discharge positive). */
+#define POWER_KP						0.01
+#define POWER_KI						0.1
+#define POWER_DATA_TIMEOUT_MS			40
+#define POWER_CONTROL_MAX_GAP_MS 		100
 
 // Car States Definition
 typedef enum CARSTATE
@@ -64,6 +70,12 @@ typedef struct ORIONDATA
 	float   low_cell;
 	uint8_t voltage_status;
 	uint8_t temp_status;
+
+	float pack_current_a;
+	float pack_instant_voltage_v;
+	uint32_t power_received_ms;
+	uint32_t power_sequence;
+	uint32_t power_received;
 } OrionData;
 
 typedef struct C185_DATA
@@ -77,7 +89,7 @@ typedef struct C185_DATA
 
 typedef struct PM150_DATA
 {
-	uint16_t mc_rpm; /**< @brief Front Right from C185 (km/h x10). */
+	int32_t mc_rpm; /**< @brief Front Right from C185 (km/h x10). */
 } PM150_Data;
 
 /** @brief Holds processed data for the throttle sensors. */
@@ -100,6 +112,31 @@ typedef struct BRAKE
 	uint16_t avg;   /**< @brief Averaged brake pressure. */
 } Brake;
 
+typedef struct TORQUE
+{
+    /* All torque fields use 0.1 Nm units. */
+    uint16_t driver_request;
+    uint16_t power_limit;
+    uint16_t command;
+} Torque;
+
+typedef struct POWERLIMITER
+{
+    float target_kw;
+    float kp;
+    float ki;
+
+    float integral;
+    float measured_kw;
+    float reduction;
+
+    uint32_t previous_sequence;
+    uint32_t previous_sample_ms;
+
+    uint8_t active;
+    uint8_t data_valid;
+} PowerLimiter;
+
 /** @brief Holds processed data for the wheel speed sensor potentiometer sensors. */
 typedef struct WSS
 {
@@ -107,7 +144,14 @@ typedef struct WSS
 	uint16_t fr;	/**< @brief Processed front right wheel speed (km/h) x100. */
 } Wss;
 
-uint16_t calculateTorque(Throttle *throttle, PM150_Data *pm150);
+void updateTorque(
+    Torque *torque,
+    const Throttle *throttle,
+    const PM150_Data *motor,
+    const OrionData *battery,
+    PowerLimiter *limiter,
+    uint8_t drive_allowed,
+    uint32_t now_ms);
 void updateFaultLEDs(Faults *faults);
 void updateWarningLEDs(OrionData *orion);
 uint8_t checkFault(Faults *faults);

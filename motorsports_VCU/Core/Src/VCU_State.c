@@ -11,33 +11,130 @@
 #include <stdlib.h>
 
 
-uint16_t calculateTorque(Throttle *throttle, PM150_Data *pm150)
+static float clampUnit(float value) {
+	if (value < 0) {
+		return 0;
+	}
+
+	if (value > 1) {
+		return 1;
+	}
+
+	return value;
+}
+
+void updateTorque(
+    Torque *torque,
+    const Throttle *throttle,
+    const PM150_Data *motor,
+    const OrionData *battery,
+    PowerLimiter *limiter,
+    uint8_t drive_allowed,
+    uint32_t now_ms)
 {
-	// Calculate Torque Command
-	// ADD REDUNDANCY
-	uint16_t _torque = (throttle->pos) * (TORQUE_MAX) / TPS_POS_MAX;
+	/*
+     * Calculate the driver's request independently.
+     * Units are 0.1 Nm.
+     */
+	uint32_t request = ((uint32_t)throttle->pos * TORQUE_MAX) / TPS_POS_MAX;
 
-	float torque_ceiling = 0;
-	float torque_nm = _torque * 0.1;
-
-	// 75 kW power limit
-	float mc_rads = 0.1047 * pm150->mc_rpm; // 2pi/60 * RPM
-	torque_ceiling = (POWER_LIMIT / mc_rads);
-
-	// Choose the lower of the two torque values
-	if (torque_nm > torque_ceiling) {
-		_torque = torque_ceiling * 10; // convert from Nm back to bits
-	} else {
-		_torque = torque_nm * 10;
+	if (request > TORQUE_MAX) {
+		request = TORQUE_MAX;
 	}
 
-	if (_torque > TORQUE_MAX) {
-		_torque = TORQUE_MAX;
-	} else if (_torque < 0) {
-		_torque = 0;
-	}
+	torque->driver_request = (uint16_t)request;
 
-	return _torque;
+	/* Default to zero until the measurement checks pass. */
+    torque->power_limit = 0U;
+    float voltage = battery->pack_instant_voltage_v;
+    float current = battery->pack_current_a * POWER_CURRENT_SIGN;
+    uint32_t age_ms = now_ms - battery->power_received_ms;
+
+    limiter->measured_kw = voltage * current * 0.001;
+
+    limiter->data_valid =
+    	battery->power_received 		&&
+		age_ms <= POWER_DATA_TIMEOUT_MS &&
+		isfinite(voltage) 				&&
+		isfinite(current)				&&
+		voltage >= 300					&&
+		voltage <= 504					&&
+		current >= -50					&&
+		current <= 300;
+
+    /*
+     * Reset the PI when drive is not allowed, the driver
+     * requests zero torque, or power measurements are invalid.
+     */
+    if (!limiter->data_valid || !drive_allowed || request == 0) {
+    	limiter->integral = 0;
+    	limiter->reduction = 0;
+    	limiter->active = 0;
+
+    	return;
+    }
+
+    /*
+     * Apply the existing mechanical-power ceiling first.
+     * At very low speed, the driver's request and TORQUE_MAX
+     * govern the base torque.
+     */
+    float base = (float)request;
+    float omega = fabsf((float)motor->mc_rpm) * 0.10471976; // rpm * 2pi/60
+
+    if (omega > 1) {
+    	float rpm_limit = (POWER_TARGET_KW * 1000 / omega) * 10;
+
+    	if (rpm_limit < base) {
+    		base = rpm_limit;
+    	}
+    }
+
+    /*
+     * Update the PI only when a fresh measurement arrives,
+     * or when activating the controller.
+     */
+    if (!limiter->active || battery->power_sequence != limiter->previous_sequence) {
+    	float dt = 0;
+
+    	if (limiter->active) {
+    		uint32_t elapsed = battery->power_received_ms - limiter->previous_sample_ms;
+
+    		if (elapsed <= POWER_CONTROL_MAX_GAP_MS) {
+    			dt = elapsed * 0.001;
+    		} else {
+                // Do not integrate across a long gap in the measurement stream
+                limiter->integral = 0.0f;
+    		}
+    	}
+
+    	float error = limiter->measured_kw - limiter->target_kw;
+    	float proportional = limiter->kp * error;
+    	float output = proportional + limiter->integral;
+
+    	/*
+         * Stop integration if it would push the output
+         * further beyond its limits. Allow it to unwind.
+         */
+    	uint8_t winding_up =
+    			(output >= 1 && error > 0) ||
+				(output <= 0 && error < 0);
+
+    	if (!winding_up) {
+    		limiter->integral = clampUnit(limiter->integral + limiter->ki * error * dt);
+    	}
+
+    	limiter->reduction = clampUnit(proportional + limiter->integral);
+    	limiter->previous_sequence = battery->power_sequence;
+    	limiter->previous_sample_ms = battery->power_received_ms;
+    	limiter->active = 1;
+    }
+
+     /*
+     * Convert the reduction fraction into a torque ceiling.
+     * The final driver-request comparison occurs in CAN TX.
+     */
+    torque->power_limit = (uint16_t)(base * (1 - limiter->reduction));
 }
 
 void updateFaultLEDs(Faults *faults)
