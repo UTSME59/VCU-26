@@ -225,7 +225,7 @@ void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, MessagePriori
 
 void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriority)
 {
-	CAN_TxHeaderTypeDef   TxHeader;
+	CAN_TxHeaderTypeDef   TxHeader = {0};
 	uint8_t               TxData[Tx_SENSOR_DATA_DLC] = {0};
 	uint32_t              TxMailbox;
 
@@ -235,12 +235,21 @@ void sendSensorData(CAN_HandleTypeDef *hcan, Wss *wss, MessagePriority msgPriori
 	TxHeader.IDE = CAN_ID_STD;
 	TxHeader.DLC = Tx_SENSOR_DATA_DLC;
 
-	// Bytes 0-3 were suspension pot FR/FL. Those sensors now go to the C185, so these bytes are
-	// sent as 0 and the wheel speeds stay in bytes 4-7 (frame layout unchanged for loggers).
-	TxData[4] = (uint8_t) (wss->fr & 0xFF);
-	TxData[5] = (uint8_t) ((wss->fr >> 8) & 0xFF);
-	TxData[6] = (uint8_t) (wss->fl & 0xFF);
-	TxData[7] = (uint8_t) ((wss->fl >> 8) & 0xFF);
+	// Front Left - Bytes 0-1
+	TxData[0] = (uint8_t)(wss->fl & 0xFF);
+	TxData[1] = (uint8_t)((wss->fl >> 8) & 0xFF);
+
+	// Front Right - Bytes 2-3
+	TxData[2] = (uint8_t)(wss->fr & 0xFF);
+	TxData[3] = (uint8_t)((wss->fr >> 8) & 0xFF);
+
+	// Rear Left - Bytes 4-5
+	TxData[4] = (uint8_t)(wss->rl & 0xFF);
+	TxData[5] = (uint8_t)((wss->rl >> 8) & 0xFF);
+
+	// Rear Right - Bytes 6-7
+	TxData[6] = (uint8_t)(wss->rr & 0xFF);
+	TxData[7] = (uint8_t)((wss->rr >> 8) & 0xFF);
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }

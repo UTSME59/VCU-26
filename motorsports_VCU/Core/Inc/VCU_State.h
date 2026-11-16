@@ -142,6 +142,8 @@ typedef struct WSS
 {
 	uint16_t fl;	/**< @brief Processed front left wheel speed (km/h) x100. */
 	uint16_t fr;	/**< @brief Processed front right wheel speed (km/h) x100. */
+	uint16_t rl;
+	uint16_t rr;
 } Wss;
 
 void updateTorque(

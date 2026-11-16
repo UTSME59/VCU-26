@@ -10,6 +10,8 @@
 TimerHandler *_htimer;
 WssTimer _wss_fl = {0};
 WssTimer _wss_fr = {0};
+WssTimer _wss_rl = {0};
+WssTimer _wss_rr = {0};
 
 
 
@@ -57,9 +59,11 @@ void timerStart()
 		  Tmr_Error_Handler();
 		}
 
+		HAL_TIM_IC_Start_IT(_htimer->htim2, TIM_CHANNEL_3); // FR
+		HAL_TIM_IC_Start_IT(_htimer->htim2, TIM_CHANNEL_4); // RL
 
-	  HAL_TIM_IC_Start_IT(_htimer->htim2, TIM_IT_CC3);
-	  HAL_TIM_IC_Start_IT(_htimer->htim5, TIM_IT_CC2);
+		HAL_TIM_IC_Start_IT(_htimer->htim5, TIM_CHANNEL_2); // FL
+		HAL_TIM_IC_Start_IT(_htimer->htim5, TIM_CHANNEL_3); // RR
 }
 
 
@@ -80,6 +84,22 @@ void updateWSS(Wss *wss)
 		float rev_per_second = ( 1.0 / (float) ( _wss_fl.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
 		wss->fl =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
 	}
+
+	// Calculate RL Wheel Speed
+	if (!_wss_rl.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_rl.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_rl.dt == 0) {
+		wss->rl = 0;
+	} else {
+		float rev_per_second = ( 1.0 / (float) ( _wss_rl.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
+		wss->rl =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
+	}
+
+	// Calculate RR Wheel Speed
+	if (!_wss_rr.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_rr.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_rr.dt == 0) {
+		wss->rr = 0;
+	} else {
+		float rev_per_second = ( 1.0 / (float) ( _wss_rr.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
+		wss->rr =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
+	}
 }
 
 void Tmr_Error_Handler()
@@ -96,8 +116,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
     {
         // FRONT RIGHT WHEEL - TIM2 Channel 3
         case (uint32_t)TIM2:
-            if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3)
-            {
+            if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
                 uint32_t now_ms = HAL_GetTick();
 
                 // First pulse, or first pulse after a timeout
@@ -137,7 +156,48 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 						_wss_fr.dt = ((_wss_fr.dt * (WSS_FILTER - 1)) + dt) / WSS_FILTER;
 					}
 				}
+            } else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4) {
+            	uint32_t now_ms = HAL_GetTick();
+
+                // First pulse, or first pulse after a timeout
+                if (!_wss_rl.has_previous_pulse || (uint32_t)(now_ms - _wss_rl.last_pulse_ms) >= WSS_TIMEOUT_MS) {
+                    uint32_t capture = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_4);
+
+                    _wss_rl.t0 = capture;
+                    _wss_rl.t1 = capture;
+                    _wss_rl.dt = 0;
+                    _wss_rl.overflowcount = 0;
+                    _wss_rl.last_pulse_ms = now_ms;
+                    _wss_rl.has_previous_pulse = 1;
+                    break;
+                }
+
+                _wss_rl.last_pulse_ms = now_ms;
+
+                // Calculate time between successive pulses
+                _wss_rl.t0 = _wss_rl.t1;
+                _wss_rl.t1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_4);
+
+                uint32_t dt = 0;
+
+                if (_wss_rl.overflowcount == 0) {
+                    dt = _wss_rl.t1 - _wss_rl.t0;
+                } else if (_wss_rl.overflowcount == 1) {
+                    dt = _wss_rl.t1 + (htim->Init.Period + 1U) - _wss_rl.t0;
+                }
+
+                _wss_rl.overflowcount = 0;
+
+                // Update filtered pulse period
+                if (dt > 0) {
+					if (_wss_rl.dt == 0) {
+						_wss_rl.dt = dt;
+					} else {
+						_wss_rl.dt = ((_wss_rl.dt * (WSS_FILTER - 1)) + dt) / WSS_FILTER;
+					}
+				}
             }
+
             break;
 
         // FRONT LEFT WHEEL - TIM5 Channel 2
@@ -182,26 +242,67 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 						_wss_fl.dt = ((_wss_fl.dt * (WSS_FILTER - 1)) + dt) / WSS_FILTER;
 					}
 				}
+            } else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
+            	uint32_t now_ms = HAL_GetTick();
+
+                // First pulse, or first pulse after a timeout
+                if (!_wss_rr.has_previous_pulse || (uint32_t)(now_ms - _wss_rr.last_pulse_ms) >= WSS_TIMEOUT_MS) {
+                    uint32_t capture = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+
+                    _wss_rr.t0 = capture;
+                    _wss_rr.t1 = capture;
+                    _wss_rr.dt = 0;
+                    _wss_rr.overflowcount = 0;
+                    _wss_rr.last_pulse_ms = now_ms;
+                    _wss_rr.has_previous_pulse = 1;
+                    break;
+                }
+
+                _wss_rr.last_pulse_ms = now_ms;
+
+                // Calculate time between successive pulses
+                _wss_rr.t0 = _wss_rr.t1;
+                _wss_rr.t1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+
+                uint32_t dt = 0;
+
+                if (_wss_rr.overflowcount == 0) {
+                    dt = _wss_rr.t1 - _wss_rr.t0;
+                } else if (_wss_rr.overflowcount == 1) {
+                    dt = _wss_rr.t1 + (htim->Init.Period + 1U) - _wss_rr.t0;
+                }
+
+                _wss_rr.overflowcount = 0;
+
+                // Update filtered pulse period
+                if (dt > 0) {
+					if (_wss_rr.dt == 0) {
+						_wss_rr.dt = dt;
+					} else {
+						_wss_rr.dt = ((_wss_rr.dt * (WSS_FILTER - 1)) + dt) / WSS_FILTER;
+					}
+				}
             }
             break;
     }
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-    switch((uint32_t)htim->Instance)    {
-
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    switch((uint32_t)htim->Instance) {
     	case (uint32_t) TIM2:
 //			printf("TIM2\n");
 
-			// keep track of clock overflow
-			_wss_fr.overflowcount++;
+			// FR and RL share TIM2
+    		_wss_fr.overflowcount++;
+    		_wss_rl.overflowcount++;
 
-    		// if more than 1 overflow per clock period then wheel has stopped
-    		if (_wss_fr.overflowcount > 1) {
-    			_wss_fr.dt = 0;
-    		}
+    		 if (_wss_fr.overflowcount > 1) {
+    			 _wss_fr.dt = 0;
+    		 }
+
+    		 if (_wss_rl.overflowcount > 1) {
+    			 _wss_rl.dt = 0;
+    		 }
 
     		break;
 
@@ -217,16 +318,19 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         case (uint32_t) TIM5:
 
-			// keep track of clock overflow
+			// FL and RR share TIM5
         	_wss_fl.overflowcount++;
+        	_wss_rr.overflowcount++;
 
-        	// if more than 1 overflow per clock period then wheel has stopped
-			if (_wss_fl.overflowcount > 1) {
-				_wss_fl.dt = 0;
+        	if (_wss_fl.overflowcount > 1) {
+        		 _wss_fl.dt = 0;
+        	}
+
+			if (_wss_rr.overflowcount > 1) {
+				_wss_rr.dt = 0;
 			}
 
 			break;
-
 
         case (uint32_t) TIM6: // 30 Hz
 			_htimer->tim6_flag = 1;

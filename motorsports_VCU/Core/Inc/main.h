@@ -85,8 +85,12 @@ void Error_Handler(void);
 #define TPS2_IN1_GPIO_Port GPIOE
 #define WHL_SPEED_FR_Pin GPIO_PIN_9
 #define WHL_SPEED_FR_GPIO_Port GPIOA
+#define WHL_SPEED_RL_Pin GPIO_PIN_10
+#define WHL_SPEED_RL_GPIO_Port GPIOA
 #define WHL_SPEED_FL_Pin GPIO_PIN_11
 #define WHL_SPEED_FL_GPIO_Port GPIOA
+#define WHL_SPEED_RR_Pin GPIO_PIN_12
+#define WHL_SPEED_RR_GPIO_Port GPIOA
 #define CHARGE_EN_IN_Pin GPIO_PIN_8
 #define CHARGE_EN_IN_GPIO_Port GPIOB
 #define BSPD_FAULT_IN_Pin GPIO_PIN_9
