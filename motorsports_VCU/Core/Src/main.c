@@ -359,7 +359,7 @@ int main(void)
 
 				__set_PRIMASK(interrupt_state);
 
-				uint8_t drive_allowed = carState == RTD && !apps_brake_errors.appsBrakePlausibility;
+				uint8_t drive_allowed = (carState != FAULT) && !apps_brake_errors.appsBrakePlausibility;
 
 				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, HAL_GetTick());
 

@@ -19,13 +19,11 @@
 #define TPS2_MIN 17000          /**< @brief The minimum raw ADC value for Throttle Position Sensor 2. */
 #define TPS2_MAX 33500          /**< @brief The maximum raw ADC value for Throttle Position Sensor 2. */
 
-
-
 // -- BRAKE CONFIG -- //
 #define BRAKE_FRONT_MIN 5900    /**< @brief The minimum raw ADC value for the front brake pressure sensor. */
-#define BRAKE_FRONT_MAX 58900   /**< @brief The maximum raw ADC value for the front brake pressure sensor. */
+#define BRAKE_FRONT_MAX 32000   /**< @brief The maximum raw ADC value for the front brake pressure sensor. */
 #define BRAKE_REAR_MIN 6800     /**< @brief The minimum raw ADC value for the rear brake pressure sensor. */
-#define BRAKE_REAR_MAX 58900    /**< @brief The maximum raw ADC value for the rear brake pressure sensor. */
+#define BRAKE_REAR_MAX 36000    /**< @brief The maximum raw ADC value for the rear brake pressure sensor. */
 
 #define BRAKE_PRESSURE_MIN 0    /**< @brief The minimum calibrated brake pressure value (e.g., in PSI). */
 #define BRAKE_PRESSURE_MAX 13789/**< @brief The maximum calibrated brake pressure value (e.g., in PSI). */
