@@ -6,10 +6,11 @@
 #include "stm32f3xx_hal.h"
 
 // -- WHEEL SPEED SENSOR CONFIG-- //
-#define WSS_PULSE_PER_REVOLUTION 20	/**< @brief The number of pulses detected that corresponds to a single revolution. */
-#define WSS_FILTER 5				/**< @brief The number of samples to average over when updating the time between pulses. */
-#define WSS_CLOCK_PERIOD 0.000001	/**< @brief The time in seconds per clock count. */
-#define WHEEL_CIRCUMFERENCE 1.57
+#define WSS_PULSE_PER_REVOLUTION 	20			/**< @brief The number of pulses detected that corresponds to a single revolution. */
+#define WSS_FILTER 					5			/**< @brief The number of samples to average over when updating the time between pulses. */
+#define WSS_CLOCK_PERIOD 			0.000001	/**< @brief The time in seconds per clock count. */
+#define WHEEL_CIRCUMFERENCE 		1.57
+#define WSS_TIMEOUT_MS				500
 
 
 typedef struct TIMERHANDLER
@@ -30,10 +31,13 @@ typedef struct TIMERHANDLER
 
 typedef struct WSSTIMER
 {
-	uint32_t t0;  /**< @brief Front right wheel speed sensor previous clock time. */
-	uint32_t t1;  /**< @brief Front right wheel speed sensor latest clock time. */
-	uint32_t dt;  /**< @brief Front right wheel speed sensor difference between pulse. */
-	uint32_t overflowcount; /**< @brief Count Clock Overflow. */
+	uint32_t t0;  				/**< @brief Front right wheel speed sensor previous clock time. */
+	uint32_t t1;  				/**< @brief Front right wheel speed sensor latest clock time. */
+	uint32_t dt;  				/**< @brief Front right wheel speed sensor difference between pulse. */
+	uint32_t overflowcount; 	/**< @brief Count Clock Overflow. */
+	uint32_t last_pulse_ms;
+	uint8_t  has_previous_pulse;
+
 } WssTimer;
 
 

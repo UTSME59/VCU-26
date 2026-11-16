@@ -65,21 +65,18 @@ void timerStart()
 
 void updateWSS(Wss *wss)
 {
-	// Calculate FL Wheel Speed
-	if (_wss_fr.dt == 0){
+	// Calculate FR Wheel Speed
+	if (!_wss_fr.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_fr.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_fr.dt == 0) {
 		wss->fr = 0;
-	}
-	else {
+	} else {
 		float rev_per_second = ( 1.0 / (float) ( _wss_fr.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
 		wss->fr =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
 	}
 
-
 	// Calculate FL Wheel Speed
-	if (_wss_fl.dt == 0){
+	if (!_wss_fl.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_fl.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_fl.dt == 0) {
 		wss->fl = 0;
-	}
-	else {
+	} else {
 		float rev_per_second = ( 1.0 / (float) ( _wss_fl.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
 		wss->fl =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
 	}
@@ -92,64 +89,102 @@ void Tmr_Error_Handler()
 
 
 
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-//	printf("HAL_TIM_IC_CaptureCallback()\n");
-	switch((uint32_t)htim->Instance)    {
 
-		case (uint32_t)TIM2: // 200 Hz
-			if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
-				// Reading CCR1 automatically clears the CC1IF flag
-				_wss_fr.t0 = _wss_fr.t1;
-				_wss_fr.t1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+    switch ((uint32_t)htim->Instance)
+    {
+        // FRONT RIGHT WHEEL - TIM2 Channel 3
+        case (uint32_t)TIM2:
+            if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3)
+            {
+                uint32_t now_ms = HAL_GetTick();
 
-				// Check if clock overflow
-				uint32_t dt = 0;
-				if (_wss_fr.overflowcount == 0) {
-					dt = _wss_fr.t1 - _wss_fr.t0;
+                // First pulse, or first pulse after a timeout
+                if (!_wss_fr.has_previous_pulse || (uint32_t)(now_ms - _wss_fr.last_pulse_ms) >= WSS_TIMEOUT_MS) {
+                    uint32_t capture = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+
+                    _wss_fr.t0 = capture;
+                    _wss_fr.t1 = capture;
+                    _wss_fr.dt = 0;
+                    _wss_fr.overflowcount = 0;
+                    _wss_fr.last_pulse_ms = now_ms;
+                    _wss_fr.has_previous_pulse = 1;
+                    break;
+                }
+
+                _wss_fr.last_pulse_ms = now_ms;
+
+                // Calculate time between successive pulses
+                _wss_fr.t0 = _wss_fr.t1;
+                _wss_fr.t1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+
+                uint32_t dt = 0;
+
+                if (_wss_fr.overflowcount == 0) {
+                    dt = _wss_fr.t1 - _wss_fr.t0;
+                } else if (_wss_fr.overflowcount == 1) {
+                    dt = _wss_fr.t1 + (htim->Init.Period + 1U) - _wss_fr.t0;
+                }
+
+                _wss_fr.overflowcount = 0;
+
+                // Update filtered pulse period
+                if (dt > 0) {
+					if (_wss_fr.dt == 0) {
+						_wss_fr.dt = dt;
+					} else {
+						_wss_fr.dt = ((_wss_fr.dt * (WSS_FILTER - 1)) + dt) / WSS_FILTER;
+					}
 				}
-				else if (_wss_fr.overflowcount == 1) {
-					dt = _wss_fr.t1 + htim->Init.Period - _wss_fr.t0;
-					_wss_fr.overflowcount = 0;// reset overflow counter
+            }
+            break;
+
+        // FRONT LEFT WHEEL - TIM5 Channel 2
+        case (uint32_t)TIM5:
+            if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
+                uint32_t now_ms = HAL_GetTick();
+
+                // First pulse, or first pulse after a timeout
+                if (!_wss_fl.has_previous_pulse || (uint32_t)(now_ms - _wss_fl.last_pulse_ms) >= WSS_TIMEOUT_MS) {
+                    uint32_t capture = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2);
+
+                    _wss_fl.t0 = capture;
+                    _wss_fl.t1 = capture;
+                    _wss_fl.dt = 0;
+                    _wss_fl.overflowcount = 0;
+                    _wss_fl.last_pulse_ms = now_ms;
+                    _wss_fl.has_previous_pulse = 1;
+                    break;
+                }
+
+                _wss_fl.last_pulse_ms = now_ms;
+
+                // Calculate time between successive pulses
+                _wss_fl.t0 = _wss_fl.t1;
+                _wss_fl.t1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2);
+
+                uint32_t dt = 0;
+
+                if (_wss_fl.overflowcount == 0) {
+                    dt = _wss_fl.t1 - _wss_fl.t0;
+                } else if (_wss_fl.overflowcount == 1) {
+                    dt = _wss_fl.t1 + (htim->Init.Period + 1U) - _wss_fl.t0;
+                }
+
+                _wss_fl.overflowcount = 0;
+
+                // Update filtered pulse period
+                if (dt > 0) {
+					if (_wss_fl.dt == 0) {
+						_wss_fl.dt = dt;
+					} else {
+						_wss_fl.dt = ((_wss_fl.dt * (WSS_FILTER - 1)) + dt) / WSS_FILTER;
+					}
 				}
-				else {
-					_wss_fr.overflowcount = 0; // reset overflow counter
-				}
-
-				// Update average time between pulses
-				_wss_fr.dt = ( ( _wss_fr.dt * (WSS_FILTER - 1) ) + dt ) / WSS_FILTER; // average over single revolution
-			}
-
-			break;
-
-		case (uint32_t)TIM5: // 200 Hz
-			if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
-				// Reading CCR1 automatically clears the CC1IF flag
-
-				_wss_fl.t0 = _wss_fl.t1;
-				_wss_fl.t1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2);
-
-				// Check if clock overflow
-				uint32_t dt = 0;
-				if (_wss_fl.overflowcount == 0) {
-					dt = _wss_fl.t1 - _wss_fl.t0;
-				}
-				else if (_wss_fl.overflowcount == 1) {
-					dt = _wss_fl.t1 + htim->Init.Period - _wss_fl.t0;
-					_wss_fl.overflowcount = 0; // reset overflow counter
-				}
-				else {
-					_wss_fl.overflowcount = 0;
-				}
-
-				// Update average time between pulses
-				_wss_fl.dt = ( ( _wss_fl.dt * (WSS_FILTER - 1) ) + dt ) / WSS_FILTER; // average over single revolution
-				// Calculate Wheel Speed
-
-			}
-
-			break;
-	}
-
+            }
+            break;
+    }
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)

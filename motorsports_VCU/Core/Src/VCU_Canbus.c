@@ -327,7 +327,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	return;
   }
 
-  if(RxHeader.StdId == Rx_BMS_POWER_ID) {
+  if (RxHeader.IDE == CAN_ID_STD && RxHeader.RTR == CAN_RTR_DATA && RxHeader.StdId == Rx_BMS_POWER_ID && RxHeader.DLC == 8) {
 	  uint16_t raw_current = ((uint16_t)RxData[0] << 8 | RxData[1]);
 	  uint16_t raw_voltage = ((uint16_t)RxData[2] << 8 | RxData[3]);
 
