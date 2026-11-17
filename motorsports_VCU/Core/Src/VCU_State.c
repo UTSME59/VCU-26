@@ -69,6 +69,8 @@ void updateTorque(
     if (!limiter->data_valid || !drive_allowed || request == 0) {
     	limiter->integral = 0;
     	limiter->reduction = 0;
+    	limiter->p_term = 0;
+    	limiter->i_term = 0;
     	limiter->active = 0;
 
     	return;
@@ -124,6 +126,8 @@ void updateTorque(
     		limiter->integral = clampUnit(limiter->integral + limiter->ki * error * dt);
     	}
 
+    	limiter->p_term = proportional;
+    	limiter->i_term = limiter->integral;
     	limiter->reduction = clampUnit(proportional + limiter->integral);
     	limiter->previous_sequence = battery->power_sequence;
     	limiter->previous_sample_ms = battery->power_received_ms;

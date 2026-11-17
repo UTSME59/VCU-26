@@ -80,26 +80,26 @@ typedef struct ORIONDATA
 
 typedef struct C185_DATA
 {
-	uint16_t fr; /**< @brief Front Right from C185 (km/h x10). */
-	uint16_t fl; /**< @brief Front Left from C185  (km/h x10). */
-	uint16_t rr; /**< @brief Rear Right from C185  (km/h x10). */
-	uint16_t rl; /**< @brief Rear Left from C185   (km/h x10). */
-	uint16_t slip_ratio; /**< @brief Calculated Slip Ratio. */
+	uint16_t fr; 			/**< @brief Front Right from C185 (km/h x10). */
+	uint16_t fl; 			/**< @brief Front Left from C185  (km/h x10). */
+	uint16_t rr; 			/**< @brief Rear Right from C185  (km/h x10). */
+	uint16_t rl; 			/**< @brief Rear Left from C185   (km/h x10). */
+	uint16_t slip_ratio; 	/**< @brief Calculated Slip Ratio. */
 } C185_Data;
 
 typedef struct PM150_DATA
 {
-	int32_t mc_rpm; /**< @brief Front Right from C185 (km/h x10). */
+	int32_t mc_rpm; 		/**< @brief Front Right from C185 (km/h x10). */
 } PM150_Data;
 
 /** @brief Holds processed data for the throttle sensors. */
 typedef struct THROTTLE
 {
-	uint16_t tps1;    /**< @brief Processed position of throttle sensor 1 (0-100%). */
-	uint16_t tps1_range_error;    /**< @brief Processed position of throttle sensor 1 (0-100%). */
-	uint16_t tps2;    /**< @brief Processed position of throttle sensor 2 (0-100%). */
-	uint16_t tps2_range_error;    /**< @brief Processed position of throttle sensor 1 (0-100%). */
-	uint16_t pos;     /**< @brief Averaged throttle position (0-100%). */
+	uint16_t tps1;    				/**< @brief Processed position of throttle sensor 1 (0-100%). */
+	uint16_t tps1_range_error;    	/**< @brief Processed position of throttle sensor 1 (0-100%). */
+	uint16_t tps2;    				/**< @brief Processed position of throttle sensor 2 (0-100%). */
+	uint16_t tps2_range_error;    	/**< @brief Processed position of throttle sensor 1 (0-100%). */
+	uint16_t pos;     				/**< @brief Averaged throttle position (0-100%). */
 } Throttle;
 
 /** @brief Holds processed data for the brake pressure sensors. */
@@ -129,6 +129,9 @@ typedef struct POWERLIMITER
     float integral;
     float measured_kw;
     float reduction;
+
+    float p_term;
+    float i_term;
 
     uint32_t previous_sequence;
     uint32_t previous_sample_ms;

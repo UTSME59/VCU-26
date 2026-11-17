@@ -9,6 +9,7 @@
 #include <VCU_Canbus.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 extern volatile uint8_t start_btn, regen_sw, tc_sw;
 
@@ -204,7 +205,7 @@ void sendTorqueCommand(CAN_HandleTypeDef *hcan, Torque *torque, uint8_t apps_bra
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
 
-void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, MessagePriority msgPriority) {
+void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, PowerLimiter *limiter, MessagePriority msgPriority) {
 	CAN_TxHeaderTypeDef TxHeader = {0};
 	uint8_t 			TxData[Tx_TORQUE_LOG_DLC] = {0};
 	uint32_t 			TxMailbox;
@@ -214,10 +215,15 @@ void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, MessagePriori
 	TxHeader.IDE = CAN_ID_STD;
 	TxHeader.DLC = Tx_TORQUE_LOG_DLC;
 
+	float p_percent = limiter->p_term * 100;
+	p_percent = fmaxf(-100, fminf(100, p_percent));
+
 	TxData[0] = (uint8_t)(torque->driver_request & 0xFF);
-	TxData[1] = (uint8_t)(torque->driver_request >> 8);
+	TxData[1] = (uint8_t)((torque->driver_request >> 8) & 0xFF);
 	TxData[2] = (uint8_t)(torque->power_limit & 0xFF);
-	TxData[3] = (uint8_t)(torque->power_limit >> 8);
+	TxData[3] = (uint8_t)((torque->power_limit >> 8) & 0xFF);
+	TxData[4] = (uint8_t)(int8_t)lroundf(p_percent);
+	TxData[5] = (uint8_t)lroundf(limiter->i_term * 100);
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }

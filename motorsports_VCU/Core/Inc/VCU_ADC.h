@@ -14,10 +14,10 @@
 #define ADC_RESOLUTION 16       /**< @brief ADC resolution in bits. */
 
 // -- THROTTLE CONFIG -- //
-#define TPS1_MIN 27000          /**< @brief The minimum raw ADC value for Throttle Position Sensor 1. */
+#define TPS1_MIN 23500          /**< @brief The minimum raw ADC value for Throttle Position Sensor 1. */
 #define TPS1_MAX 45000          /**< @brief The maximum raw ADC value for Throttle Position Sensor 1. */
-#define TPS2_MIN 17000          /**< @brief The minimum raw ADC value for Throttle Position Sensor 2. */
-#define TPS2_MAX 33500          /**< @brief The maximum raw ADC value for Throttle Position Sensor 2. */
+#define TPS2_MIN 14000          /**< @brief The minimum raw ADC value for Throttle Position Sensor 2. */
+#define TPS2_MAX 33000          /**< @brief The maximum raw ADC value for Throttle Position Sensor 2. */
 
 // -- BRAKE CONFIG -- //
 #define BRAKE_FRONT_MIN 5900    /**< @brief The minimum raw ADC value for the front brake pressure sensor. */

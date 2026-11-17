@@ -364,7 +364,7 @@ int main(void)
 				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, HAL_GetTick());
 
 				sendTorqueCommand(&hcan, &torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
-				sendTorqueControlLog(&hcan, &torque, NOT_CRITICAL);
+				sendTorqueControlLog(&hcan, &torque, &powerLimiter, NOT_CRITICAL);
 			}
 
 			// Send Brake
