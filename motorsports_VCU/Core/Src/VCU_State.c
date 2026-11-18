@@ -23,15 +23,7 @@ static float clampUnit(float value) {
 	return value;
 }
 
-void updateTorque(
-    Torque *torque,
-    const Throttle *throttle,
-    const PM150_Data *motor,
-    const OrionData *battery,
-    PowerLimiter *limiter,
-    uint8_t drive_allowed,
-    uint32_t now_ms)
-{
+void updateTorque(Torque *torque, Throttle *throttle, PM150_Data *motor, OrionData *battery, PowerLimiter *limiter, uint8_t drive_allowed, uint32_t now_ms) {
 	/*
      * Calculate the driver's request independently.
      * Units are 0.1 Nm.
@@ -187,9 +179,9 @@ void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_
 			float i_max = clampUnit(1 - p);
 			float next_i = tc->integral + tc->ki * error *dt;
 
-			if (error > 0 && tc->integral < i_max) {
+			if (error > 0.0f && tc->integral < i_max) {
 				tc->integral = fminf(next_i, i_max);
-			} else {
+			} else if (error < 0.0f) {
 				tc->integral = fmaxf(next_i, 0);
 			}
 		}

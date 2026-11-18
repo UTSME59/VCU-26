@@ -67,7 +67,7 @@ void timerStart()
 }
 
 
-static uint16_t wheelSpeed(const WssTimer *sample, uint32_t now_ms, uint8_t bit, uint8_t *fresh)
+static uint16_t wheelSpeed(WssTimer *sample, uint32_t now_ms, uint8_t bit, uint8_t *fresh)
 {
     uint32_t age_ms = now_ms - sample->last_sample_ms;
 

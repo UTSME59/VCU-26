@@ -336,52 +336,41 @@ int main(void)
 		 *  Stagger message transmission so each message is 40Hz / 2 = 20Hz
 		*/
 		if (htimer.tim4_flag) {
-			// Get Throttle Position from ADC Measurement
+			/* TIM4 runs every 25 ms. */
+			htimer.tim4_flag = 0;
 
-			// Update Brake and Throttle Values
-			updateThrottlePosition(&hadc,&throttle);
-			updateBrakePressure(&hadc,&brake);
+			updateThrottlePosition(&hadc, &throttle);
+			updateBrakePressure(&hadc, &brake);
 			checkAppsBrakePlausibilityError(&apps_brake_errors, &throttle, &brake);
 
+			OrionData battery_sample = {0};
+			PM150_Data motor_sample = {0};
 
-			// --- ALTERNATE MESSAGE TRANSMISSION TO AVOID MAILBOX OVERFLOW --- //
+			uint32_t interrupt_state = __get_PRIMASK();
+			__disable_irq();
+			battery_sample.pack_current_a = rxData.orion.pack_current_a;
+			battery_sample.pack_instant_voltage_v = rxData.orion.pack_instant_voltage_v;
+			battery_sample.power_received_ms = rxData.orion.power_received_ms;
+			battery_sample.power_sequence = rxData.orion.power_sequence;
+			battery_sample.power_received = rxData.orion.power_received;
+			motor_sample.mc_rpm = rxData.pm150.mc_rpm;
+			__set_PRIMASK(interrupt_state);
 
-			// Send Throttle
-			if(critical_counter % total_critical == 0) {
+    		uint8_t drive_allowed = carState != FAULT && !apps_brake_errors.appsBrakePlausibility;
+    		uint32_t now_ms = HAL_GetTick();
 
-				OrionData battery_sample = {0};
-				PM150_Data motor_sample = {0};
+    		updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, now_ms);
+    		updateWSS(&wss);
+    		updateTractionLimiter(&torque, &tractionLimiter, &wss, carState == RTD, tc_sw, now_ms);
+    		sendTorqueCommand(&hcan, &torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
 
-				uint32_t interrupt_state = __get_PRIMASK();
-				__disable_irq();
+    		if (critical_counter % total_critical == 0) {
+    			sendTorqueControlLog(&hcan, &torque, NOT_CRITICAL);
+    		} else {
+        		sendBrakePressure(&hcan, &brake, carState, CRITICAL);
+    		}
 
-				battery_sample.pack_current_a = rxData.orion.pack_current_a;
-				battery_sample.pack_instant_voltage_v =rxData.orion.pack_instant_voltage_v;
-				battery_sample.power_received_ms = rxData.orion.power_received_ms;
-				battery_sample.power_sequence = rxData.orion.power_sequence;
-				battery_sample.power_received = rxData.orion.power_received;
-				motor_sample.mc_rpm = rxData.pm150.mc_rpm;
-
-				__set_PRIMASK(interrupt_state);
-
-				uint8_t drive_allowed = (carState != FAULT) && !apps_brake_errors.appsBrakePlausibility;
-
-				uint32_t now_ms = HAL_GetTick();
-
-				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, now_ms);
-				updateWSS(&wss);
-				updateTractionLimiter(&torque, &tractionLimiter, &wss, carState == RTD, tc_sw, now_ms);
-				sendTorqueCommand(&hcan, &torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
-				sendTorqueControlLog(&hcan, &torque, NOT_CRITICAL);
-			}
-
-			// Send Brake
-			else if(critical_counter % total_critical == 1) {
-				sendBrakePressure(&hcan, &brake, carState, CRITICAL);
-			}
-
-			critical_counter++;
-			htimer.tim4_flag = 0; // reset
+    		critical_counter++;
 		}
 
 		/*

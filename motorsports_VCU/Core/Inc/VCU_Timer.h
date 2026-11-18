@@ -37,8 +37,8 @@ typedef struct WSSTIMER
 	uint32_t dt;  				/**< @brief Front right wheel speed sensor difference between pulse. */
 	uint32_t overflowcount; 	/**< @brief Count Clock Overflow. */
 	uint32_t last_pulse_ms;
+	uint32_t last_sample_ms;
 	uint8_t  has_previous_pulse;
-
 } WssTimer;
 
 
