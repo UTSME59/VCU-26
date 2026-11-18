@@ -9,7 +9,9 @@
 
 
 // -- TORQUE CONFIG -- //
-#define TORQUE_MAX 						500    /**< @brief The maximum torque command value to be sent. */
+#define TORQUE_MAX 						2200    /**< @brief The maximum torque command value to be sent. */
+#define DRIVE_CYCLE_INTERVAL_MS			5000
+#define	DRIVE_CYCLE_TRIGGER_PERCENT		10
 #define BRAKE_PRESSURE_START_THRESHOLD  500 	/**< @brief Pressure threshold to trigger RTD. */
 #define BRAKE_PRESSURE_APPS_THRESHOLD   500  	/**< @brief Pressure threshold to trigger APPS/Brake plausibility check. */
 
@@ -149,14 +151,7 @@ typedef struct WSS
 	uint16_t rr;
 } Wss;
 
-void updateTorque(
-    Torque *torque,
-    const Throttle *throttle,
-    const PM150_Data *motor,
-    const OrionData *battery,
-    PowerLimiter *limiter,
-    uint8_t drive_allowed,
-    uint32_t now_ms);
+void updateTorque(Torque *torque, const Throttle *throttle, const PM150_Data *motor, const OrionData *battery, PowerLimiter *limiter, CarState car_state, uint8_t drive_allowed, uint32_t now_ms);
 void updateFaultLEDs(Faults *faults);
 void updateWarningLEDs(OrionData *orion);
 uint8_t checkFault(Faults *faults);

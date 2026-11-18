@@ -23,26 +23,84 @@ static float clampUnit(float value) {
 	return value;
 }
 
+static const uint16_t drive_cycle_nm[] = {
+     20,  30,  40,  50,  60,  70,  80,
+     90, 100, 110, 120, 130, 140, 150,
+    160, 170, 180, 190, 200, 210, 220
+};
+
+typedef enum {
+    CYCLE_WAIT_RELEASE,
+    CYCLE_WAIT_PRESS,
+    CYCLE_RUNNING,
+    CYCLE_FINISHED
+} DriveCycleState;
+
+/* Returns the scheduled torque request in PM150 units of 0.1 Nm. */
+static uint16_t driveCycleRequest(CarState car_state, uint8_t permitted,
+                                  uint16_t pedal_percent, uint32_t now_ms)
+{
+    static DriveCycleState state = CYCLE_WAIT_RELEASE;
+    static uint32_t start_ms;
+    const uint32_t step_count = sizeof drive_cycle_nm / sizeof drive_cycle_nm[0];
+
+    if (car_state != RTD) {
+        state = CYCLE_WAIT_RELEASE;
+        return 0U;
+    }
+
+    if (!permitted) {
+        if (state == CYCLE_RUNNING) {
+            state = CYCLE_FINISHED;
+        } else if (state == CYCLE_WAIT_PRESS) {
+            state = CYCLE_WAIT_RELEASE;
+        }
+        return 0U;
+    }
+
+    switch (state) {
+    case CYCLE_WAIT_RELEASE:
+        if (pedal_percent < DRIVE_CYCLE_TRIGGER_PERCENT) {
+            state = CYCLE_WAIT_PRESS;
+        }
+        return 0U;
+
+    case CYCLE_WAIT_PRESS:
+        if (pedal_percent < DRIVE_CYCLE_TRIGGER_PERCENT) {
+            return 0U;
+        }
+        start_ms = now_ms;
+        state = CYCLE_RUNNING;
+        break;
+
+    case CYCLE_RUNNING:
+        break;
+
+    case CYCLE_FINISHED:
+    default:
+        return 0U;
+    }
+
+    /* Integer division holds each setpoint for one complete interval. */
+    uint32_t step = (now_ms - start_ms) / DRIVE_CYCLE_INTERVAL_MS;
+    if (step >= step_count) {
+        state = CYCLE_FINISHED;
+        return 0U;
+    }
+
+    return (uint16_t)(drive_cycle_nm[step] * 10U);
+}
+
 void updateTorque(
     Torque *torque,
     const Throttle *throttle,
     const PM150_Data *motor,
     const OrionData *battery,
     PowerLimiter *limiter,
+	CarState car_state,
     uint8_t drive_allowed,
     uint32_t now_ms)
 {
-	/*
-     * Calculate the driver's request independently.
-     * Units are 0.1 Nm.
-     */
-	uint32_t request = ((uint32_t)throttle->pos * TORQUE_MAX) / TPS_POS_MAX;
-
-	if (request > TORQUE_MAX) {
-		request = TORQUE_MAX;
-	}
-
-	torque->driver_request = (uint16_t)request;
 
 	/* Default to zero until the measurement checks pass. */
     torque->power_limit = 0U;
@@ -61,6 +119,10 @@ void updateTorque(
 		voltage <= 504					&&
 		current >= -50					&&
 		current <= 300;
+
+    uint16_t request = driveCycleRequest(car_state, drive_allowed && limiter->data_valid, throttle->pos,now_ms);
+
+    torque->driver_request = request;
 
     /*
      * Reset the PI when drive is not allowed, the driver

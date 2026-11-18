@@ -359,9 +359,9 @@ int main(void)
 
 				__set_PRIMASK(interrupt_state);
 
-				uint8_t drive_allowed = (carState != FAULT) && !apps_brake_errors.appsBrakePlausibility;
+				uint8_t drive_allowed = (carState == RTD) && !apps_brake_errors.appsBrakePlausibility && (brake.avg <= BRAKE_PRESSURE_APPS_THRESHOLD);
 
-				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, HAL_GetTick());
+				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, carState, drive_allowed, HAL_GetTick());
 
 				sendTorqueCommand(&hcan, &torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
 				sendTorqueControlLog(&hcan, &torque, &powerLimiter, NOT_CRITICAL);
