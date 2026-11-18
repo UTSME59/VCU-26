@@ -366,6 +366,7 @@ int main(void)
 
     		if (critical_counter % total_critical == 0) {
     			sendTorqueControlLog(&hcan, &torque, NOT_CRITICAL);
+    			sendControllers(&hcan, &powerLimiter, &tractionLimiter, NOT_CRITICAL);
     		} else {
         		sendBrakePressure(&hcan, &brake, carState, CRITICAL);
     		}

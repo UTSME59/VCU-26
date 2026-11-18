@@ -18,7 +18,6 @@ volatile uint8_t debug_inverter_enable = 0;
 
 uint8_t print_canbus = 0;
 
-
 //--- CANBUS Messages ---//
 
 //  Handler
@@ -227,6 +226,24 @@ void sendTorqueControlLog(CAN_HandleTypeDef *hcan, Torque *torque, MessagePriori
 	TxData[5] = (uint8_t)(torque->traction_limit >> 8);
 
 	_send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
+}
+
+void sendControllers(CAN_HandleTypeDef *hcan, PowerLimiter *power, TractionLimiter *tc, MessagePriority msgPriority) {
+    CAN_TxHeaderTypeDef TxHeader = {0};
+    uint8_t TxData[Tx_CONTROL_LOG_DLC];
+    uint32_t TxMailbox;
+
+    TxHeader.StdId = Tx_CONTROL_LOG_ID;
+    TxHeader.RTR = CAN_RTR_DATA;
+    TxHeader.IDE = CAN_ID_STD;
+    TxHeader.DLC = Tx_CONTROL_LOG_DLC;
+
+    TxData[0] = (uint8_t)(int8_t)lroundf(fmaxf(-100, fminf(100, power->p_term * 100)));
+    TxData[1] = (uint8_t)lroundf(fmaxf(0, fminf(100, power->i_term * 100)));
+    TxData[2] = (uint8_t)(int8_t)lroundf(fmaxf(-100, fminf(100, tc->p_term * 100)));
+    TxData[3] = (uint8_t)lroundf(fmaxf(0, fminf(100, tc->integral * 100)));
+
+    _send(hcan, &TxHeader, TxData, &TxMailbox, msgPriority);
 }
 
 

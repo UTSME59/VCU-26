@@ -163,6 +163,7 @@ typedef struct TRACTIONLIMITER
 	 float integral;
 	 float reduction;
 	 float slip_pct;
+	 float p_term;
 	 uint32_t last_update_ms;
 	 uint8_t active;
 	 uint8_t data_valid;

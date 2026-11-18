@@ -163,6 +163,7 @@ void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_
 				 tc->data_valid &&
 				 front_avg >= TC_MIN_SPEED_KMH;
 	tc->slip_pct = 0;
+	tc->p_term = 0;
 	float target_reduction = 0;
 
 	if (tc->active) {
@@ -172,6 +173,7 @@ void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_
 
 		float error = tc->slip_pct - TC_SLIP_REF_PCT;
 		float p = tc->kp * error;
+		tc->p_term = p;
 
 		if (!was_active || elapsed_ms > TC_MAX_STEP_MS) {
 			tc->integral = 0;

@@ -92,18 +92,18 @@ void updateWSS(Wss *wss)
 {
     uint32_t irq_state = __get_PRIMASK();
     __disable_irq();
-    const WssTimer fl = _wss_fl;
-    const WssTimer fr = _wss_fr;
-    const WssTimer rl = _wss_rl;
-    const WssTimer rr = _wss_rr;
+    WssTimer fl = _wss_fl;
+    WssTimer fr = _wss_fr;
+    WssTimer rl = _wss_rl;
+    WssTimer rr = _wss_rr;
     uint32_t now_ms = HAL_GetTick();
     __set_PRIMASK(irq_state);
 
     wss->fresh_mask = 0U;
-    wss->fl = wheelSpeed(&fl, now_ms, 1U << 0, &wss->fresh_mask);
-    wss->fr = wheelSpeed(&fr, now_ms, 1U << 1, &wss->fresh_mask);
-    wss->rl = wheelSpeed(&rl, now_ms, 1U << 2, &wss->fresh_mask);
-    wss->rr = wheelSpeed(&rr, now_ms, 1U << 3, &wss->fresh_mask);
+    wss->fl = wheelSpeed(&fl, now_ms, 1 << 0, &wss->fresh_mask);
+    wss->fr = wheelSpeed(&fr, now_ms, 1 << 1, &wss->fresh_mask);
+    wss->rl = wheelSpeed(&rl, now_ms, 1 << 2, &wss->fresh_mask);
+    wss->rr = wheelSpeed(&rr, now_ms, 1 << 3, &wss->fresh_mask);
 }
 
 void Tmr_Error_Handler()
