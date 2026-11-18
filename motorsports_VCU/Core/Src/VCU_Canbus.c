@@ -70,30 +70,69 @@ void configFilters(CAN_HandleTypeDef *hcan, const uint16_t *idList, uint16_t len
 }
 
 
+volatile uint32_t inverter_tx_skipped = 0;
+
 void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
-        const uint8_t TxData[], uint32_t *TxMailbox, MessagePriority msgPriority)
+           const uint8_t TxData[], uint32_t *TxMailbox,
+           MessagePriority msgPriority)
 {
-	uint8_t mailboxFreeLevel = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
+    static uint32_t torque_mailbox = 0U;
+    const uint8_t is_torque = (TxHeader->StdId == Tx_TORQUE_ID);
+    (void)msgPriority;
 
-	// Empty lowest priority Mailbox
-	if (mailboxFreeLevel == 0 && msgPriority == CRITICAL) {
+    /* All VCU transmitters call this helper from the main loop. */
+    if (torque_mailbox != 0U &&
+        !HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
+        torque_mailbox = 0U;
+    }
 
-		// Get Mailbox with lowest Priority
-		uint32_t mailbox = (hcan->Instance->TSR & ( CAN_TSR_LOW0 | CAN_TSR_LOW1 | CAN_TSR_LOW2 ) ) >> CAN_TSR_LOW0_Pos;
+    if (is_torque && torque_mailbox != 0U) {
+        /* Last tick's command is still pending. Request cancellation. */
+        HAL_CAN_AbortTxRequest(hcan, torque_mailbox);
+        if (HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
+            inverter_tx_skipped++;
+            return;
+        }
+        torque_mailbox = 0U;
+    }
 
-		// Abort Mailbox with lowest Priority
-		HAL_CAN_AbortTxRequest(hcan, mailbox);
+    uint32_t free_slots = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
 
-		mailboxFreeLevel = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
-	}
+    /* At most two of the three mailboxes may hold other messages. */
+    if (!is_torque && torque_mailbox == 0U && free_slots <= 1U) {
+        return;
+    }
 
-	if (mailboxFreeLevel > 0) {
-		if (HAL_CAN_AddTxMessage(hcan, TxHeader, TxData, TxMailbox) != HAL_OK) {
-		  /* Transmission request Error */
-		  HAL_CAN_ErrorCallback(hcan);
-		  Tx_Error_Handler(hcan);
-		}
-	}
+    if (free_slots == 0U) {
+        if (is_torque) {
+            inverter_tx_skipped++;
+        }
+        return;
+    }
+
+    /* This VCU sends standard-ID data frames. HAL reads eight data bytes. */
+    CAN_TxHeaderTypeDef header = {
+        .StdId = TxHeader->StdId,
+        .IDE   = CAN_ID_STD,
+        .RTR   = CAN_RTR_DATA,
+        .DLC   = TxHeader->DLC,
+    };
+    uint8_t payload[8] = {0};
+    memcpy(payload, TxData, header.DLC);
+
+    if (HAL_CAN_AddTxMessage(hcan, &header, payload, TxMailbox) != HAL_OK) {
+        if (is_torque) {
+            inverter_tx_skipped++;
+        }
+        return;
+    }
+
+    if (is_torque) {
+        torque_mailbox = *TxMailbox;
+    } else if (*TxMailbox == torque_mailbox) {
+        /* Hardware finished the torque frame and HAL reused its mailbox. */
+        torque_mailbox = 0U;
+    }
 }
 
 
