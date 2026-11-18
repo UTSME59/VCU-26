@@ -9,7 +9,7 @@
 
 
 // -- TORQUE CONFIG -- //
-#define TORQUE_MAX 						2200    /**< @brief The maximum torque command value to be sent. */
+#define TORQUE_MAX 						500    /**< @brief The maximum torque command value to be sent. */
 #define BRAKE_PRESSURE_START_THRESHOLD  500 	/**< @brief Pressure threshold to trigger RTD. */
 #define BRAKE_PRESSURE_APPS_THRESHOLD   500  	/**< @brief Pressure threshold to trigger APPS/Brake plausibility check. */
 

@@ -79,7 +79,7 @@ void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
            MessagePriority msgPriority)
 {
     static uint32_t torque_mailbox = 0U;
-    const uint8_t is_torque = (TxHeader->StdId == Tx_TORQUE_ID);
+    uint8_t is_torque = (TxHeader->StdId == Tx_TORQUE_ID);
 
     /* Keep the existing call signature. The CAN ID selects the reserved slot. */
     (void)msgPriority;
