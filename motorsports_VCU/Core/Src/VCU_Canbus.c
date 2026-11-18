@@ -98,10 +98,12 @@ void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
 
     uint32_t free_slots = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
 
-    /* At most two of the three mailboxes may hold other messages. */
-    if (!is_torque && torque_mailbox == 0U && free_slots <= 1U) {
-        return;
-    }
+    /* Allow other frames to use the last slot only while torque is still pending. */
+    if (!is_torque && free_slots == 1) {
+    	if (torque_mailbox == 0 ||!HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
+    		return;
+    	}
+	}
 
     if (free_slots == 0U) {
         if (is_torque) {
