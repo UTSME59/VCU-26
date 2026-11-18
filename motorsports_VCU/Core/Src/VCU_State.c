@@ -149,7 +149,7 @@ void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_
 	float fl = wss->fl * 0.01;
 	float fr = wss->fr * 0.01;
 	float rl = wss->rl * 0.01;
-	float fr = wss->rr * 0.01;
+	float rr = wss->rr * 0.01;
 	float front_avg = 0.5 * (fl + fr);
 
 	tc->data_valid =
@@ -173,7 +173,7 @@ void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_
 	tc->slip_pct = 0;
 	float target_reduction = 0;
 
-	if (tc_active) {
+	if (tc->active) {
 		float slip_left = (rl - fl) / fl;
 		float slip_right = (rr - fr) / fr;
 		tc->slip_pct = 100 * fmaxf(slip_left, slip_right);
@@ -184,14 +184,13 @@ void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_
 		if (!was_active || elapsed_ms > TC_MAX_STEP_MS) {
 			tc->integral = 0;
 		} else {
-			float i_min = clampUnit(-p);
 			float i_max = clampUnit(1 - p);
 			float next_i = tc->integral + tc->ki * error *dt;
 
 			if (error > 0 && tc->integral < i_max) {
 				tc->integral = fminf(next_i, i_max);
 			} else {
-				tc->integral = fmaxf(next_i, i_min);
+				tc->integral = fmaxf(next_i, 0);
 			}
 		}
 

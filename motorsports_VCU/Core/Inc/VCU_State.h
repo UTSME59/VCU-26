@@ -20,10 +20,10 @@
 #define POWER_DATA_TIMEOUT_MS			40
 #define POWER_CONTROL_MAX_GAP_MS 		100
 
-#define TC_ENABLE               		0     /* 0 = disabled, 1 = use dash switch */
+#define TC_ENABLE               		1     /* 0 = disabled, 1 = use dash switch */
 #define TC_SLIP_REF_PCT         		3
 #define TC_MIN_SPEED_KMH       			10
-#define TC_MAX_SPEED_KMH      			80
+#define TC_MAX_SPEED_KMH      			120
 #define TC_FRONT_GAP_KMH        		1
 #define TC_FRONT_GAP_FRACTION   		0.20
 #define TC_REAR_MIN_FRACTION    		0.50

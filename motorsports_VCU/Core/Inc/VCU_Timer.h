@@ -10,7 +10,7 @@
 #define WSS_FILTER 					5			/**< @brief The number of samples to average over when updating the time between pulses. */
 #define WSS_CLOCK_PERIOD 			0.000001	/**< @brief The time in seconds per clock count. */
 #define WHEEL_CIRCUMFERENCE 		1.57
-#define WSS_TIMEOUT_TC_MS			80
+#define WSS_TC_TIMEOUT_MS			80
 #define WSS_TIMEOUT_MS				500
 
 
