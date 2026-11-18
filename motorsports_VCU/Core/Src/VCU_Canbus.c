@@ -71,32 +71,72 @@ void configFilters(CAN_HandleTypeDef *hcan, const uint16_t *idList, uint16_t len
 }
 
 
+/* Counts fresh 0x0C0 commands that the VCU could not queue. */
+volatile uint32_t inverter_tx_skipped = 0U;
+
 void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
-        const uint8_t TxData[], uint32_t *TxMailbox, MessagePriority msgPriority)
+           const uint8_t TxData[], uint32_t *TxMailbox,
+           MessagePriority msgPriority)
 {
-	uint8_t mailboxFreeLevel = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
+    static uint32_t torque_mailbox = 0U;
+    const uint8_t is_torque = (TxHeader->StdId == Tx_TORQUE_ID);
 
-	// Empty lowest priority Mailbox
-	if (mailboxFreeLevel == 0 && msgPriority == CRITICAL) {
+    /* Keep the existing call signature. The CAN ID selects the reserved slot. */
+    (void)msgPriority;
 
-		// Get Mailbox with lowest Priority
-		uint32_t mailbox = (hcan->Instance->TSR & ( CAN_TSR_LOW0 | CAN_TSR_LOW1 | CAN_TSR_LOW2 ) ) >> CAN_TSR_LOW0_Pos;
+    if (torque_mailbox != 0U &&
+        !HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
+        torque_mailbox = 0U;
+    }
 
-		// Abort Mailbox with lowest Priority
-		HAL_CAN_AbortTxRequest(hcan, mailbox);
+    /* A fresh torque command supersedes the previous tick's command. */
+    if (is_torque && torque_mailbox != 0U) {
+        HAL_CAN_AbortTxRequest(hcan, torque_mailbox);
 
-		mailboxFreeLevel = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
-	}
+        if (HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
+            inverter_tx_skipped++;
+            return;
+        }
 
-	if (mailboxFreeLevel > 0) {
-		if (HAL_CAN_AddTxMessage(hcan, TxHeader, TxData, TxMailbox) != HAL_OK) {
-		  /* Transmission request Error */
-		  HAL_CAN_ErrorCallback(hcan);
-		  Tx_Error_Handler(hcan);
-		}
-	}
+        torque_mailbox = 0U;
+    }
+
+    uint32_t free_slots = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
+
+    /* Leave one mailbox available for the next torque command. */
+    if (!is_torque && free_slots <= 1U) {
+        return;
+    }
+
+    if (free_slots == 0U) {
+        inverter_tx_skipped++;
+        return;
+    }
+
+    CAN_TxHeaderTypeDef header = {0};
+    header.StdId = TxHeader->StdId;
+    header.IDE   = CAN_ID_STD;
+    header.RTR   = CAN_RTR_DATA;
+    header.DLC   = TxHeader->DLC;
+
+    /* bxCAN HAL reads eight payload bytes, including for shorter frames. */
+    uint8_t payload[8] = {0};
+    memcpy(payload, TxData, header.DLC);
+
+    if (HAL_CAN_AddTxMessage(hcan, &header, payload, TxMailbox) != HAL_OK) {
+        if (is_torque) {
+            inverter_tx_skipped++;
+        }
+        return;
+    }
+
+    if (is_torque) {
+        torque_mailbox = *TxMailbox;
+    } else if (*TxMailbox == torque_mailbox) {
+        /* The previous torque frame completed and HAL reused its mailbox. */
+        torque_mailbox = 0U;
+    }
 }
-
 
 void sendStartSw(CAN_HandleTypeDef *hcan, MessagePriority msgPriority)
 {
