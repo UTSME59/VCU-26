@@ -20,6 +20,21 @@
 #define POWER_DATA_TIMEOUT_MS			40
 #define POWER_CONTROL_MAX_GAP_MS 		100
 
+#define TC_ENABLE               		0     /* 0 = disabled, 1 = use dash switch */
+#define TC_SLIP_REF_PCT         		3
+#define TC_MIN_SPEED_KMH       			10
+#define TC_MAX_SPEED_KMH      			80
+#define TC_FRONT_GAP_KMH        		1
+#define TC_FRONT_GAP_FRACTION   		0.20
+#define TC_REAR_MIN_FRACTION    		0.50
+
+#define TC_KP                   		0.02 /* Reduction fraction per percentage point */
+#define TC_KI                   		0.10 /* Reduction fraction per percentage point-second */
+#define TC_RELEASE_PER_S        		1.0  /* Restore up to 100% of available torque per second */
+#define TC_MAX_STEP_MS         			75
+
+#define WSS_ALL_FRESH           0x0FU
+
 // Car States Definition
 typedef enum CARSTATE
 {
@@ -117,6 +132,7 @@ typedef struct TORQUE
     /* All torque fields use 0.1 Nm units. */
     uint16_t driver_request;
     uint16_t power_limit;
+    uint16_t traction_limit;
     uint16_t command;
 } Torque;
 
@@ -140,6 +156,18 @@ typedef struct POWERLIMITER
     uint8_t data_valid;
 } PowerLimiter;
 
+typedef struct TRACTIONLIMITER
+{
+	 float kp;
+	 float ki;
+	 float integral;
+	 float reduction;
+	 float slip_pct;
+	 uint32_t last_update_ms;
+	 uint8_t active;
+	 uint8_t data_valid;
+} TractionLimiter;
+
 /** @brief Holds processed data for the wheel speed sensor potentiometer sensors. */
 typedef struct WSS
 {
@@ -147,16 +175,11 @@ typedef struct WSS
 	uint16_t fr;	/**< @brief Processed front right wheel speed (km/h) x100. */
 	uint16_t rl;
 	uint16_t rr;
+	uint8_t fresh_mask;
 } Wss;
 
-void updateTorque(
-    Torque *torque,
-    const Throttle *throttle,
-    const PM150_Data *motor,
-    const OrionData *battery,
-    PowerLimiter *limiter,
-    uint8_t drive_allowed,
-    uint32_t now_ms);
+void updateTorque(Torque *torque, Throttle *throttle, PM150_Data *motor, OrionData *battery, PowerLimiter *limiter, uint8_t drive_allowed, uint32_t now_ms);
+void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_t in_rtd, uint8_t enabled, uint32_t now_ms);
 void updateFaultLEDs(Faults *faults);
 void updateWarningLEDs(OrionData *orion);
 uint8_t checkFault(Faults *faults);

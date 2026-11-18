@@ -67,47 +67,49 @@ void timerStart()
 }
 
 
+static uint16_t wheelSpeed(const WssTimer *sample, uint32_t now_ms, uint8_t bit, uint8_t *fresh)
+{
+    uint32_t age_ms = now_ms - sample->last_sample_ms;
+
+    if (sample->dt == 0 || age_ms >= WSS_TIMEOUT_MS) {
+        return 0;
+    }
+
+    float speed = (float)WHEEL_CIRCUMFERENCE * 360.0f / (sample->dt * (float)WSS_CLOCK_PERIOD * WSS_PULSE_PER_REVOLUTION);
+
+    if (speed >= UINT16_MAX) {
+        return UINT16_MAX;
+    }
+
+    if (age_ms < WSS_TC_TIMEOUT_MS) {
+        *fresh |= bit;
+    }
+
+    return (uint16_t)speed;
+}
+
 void updateWSS(Wss *wss)
 {
-	// Calculate FR Wheel Speed
-	if (!_wss_fr.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_fr.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_fr.dt == 0) {
-		wss->fr = 0;
-	} else {
-		float rev_per_second = ( 1.0 / (float) ( _wss_fr.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
-		wss->fr =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
-	}
+    uint32_t irq_state = __get_PRIMASK();
+    __disable_irq();
+    const WssTimer fl = _wss_fl;
+    const WssTimer fr = _wss_fr;
+    const WssTimer rl = _wss_rl;
+    const WssTimer rr = _wss_rr;
+    uint32_t now_ms = HAL_GetTick();
+    __set_PRIMASK(irq_state);
 
-	// Calculate FL Wheel Speed
-	if (!_wss_fl.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_fl.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_fl.dt == 0) {
-		wss->fl = 0;
-	} else {
-		float rev_per_second = ( 1.0 / (float) ( _wss_fl.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
-		wss->fl =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
-	}
-
-	// Calculate RL Wheel Speed
-	if (!_wss_rl.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_rl.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_rl.dt == 0) {
-		wss->rl = 0;
-	} else {
-		float rev_per_second = ( 1.0 / (float) ( _wss_rl.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
-		wss->rl =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
-	}
-
-	// Calculate RR Wheel Speed
-	if (!_wss_rr.has_previous_pulse || (uint32_t)(HAL_GetTick() - _wss_rr.last_pulse_ms) >= WSS_TIMEOUT_MS || _wss_rr.dt == 0) {
-		wss->rr = 0;
-	} else {
-		float rev_per_second = ( 1.0 / (float) ( _wss_rr.dt * (float) WSS_CLOCK_PERIOD ) ) / (float) WSS_PULSE_PER_REVOLUTION;
-		wss->rr =  rev_per_second * (float) WHEEL_CIRCUMFERENCE * 360;
-	}
+    wss->fresh_mask = 0U;
+    wss->fl = wheelSpeed(&fl, now_ms, 1U << 0, &wss->fresh_mask);
+    wss->fr = wheelSpeed(&fr, now_ms, 1U << 1, &wss->fresh_mask);
+    wss->rl = wheelSpeed(&rl, now_ms, 1U << 2, &wss->fresh_mask);
+    wss->rr = wheelSpeed(&rr, now_ms, 1U << 3, &wss->fresh_mask);
 }
 
 void Tmr_Error_Handler()
 {
 
 }
-
-
 
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
@@ -150,6 +152,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
                 // Update filtered pulse period
                 if (dt > 0) {
+                	_wss_fr.last_sample_ms = now_ms;  /* FR block, TIM2 CH3 */
+
 					if (_wss_fr.dt == 0) {
 						_wss_fr.dt = dt;
 					} else {
@@ -190,6 +194,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
                 // Update filtered pulse period
                 if (dt > 0) {
+                	_wss_rl.last_sample_ms = now_ms;  /* RL block, TIM2 CH4 */
+
 					if (_wss_rl.dt == 0) {
 						_wss_rl.dt = dt;
 					} else {
@@ -236,6 +242,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
                 // Update filtered pulse period
                 if (dt > 0) {
+                	_wss_fl.last_sample_ms = now_ms;  /* FL block, TIM5 CH2 */
+
 					if (_wss_fl.dt == 0) {
 						_wss_fl.dt = dt;
 					} else {
@@ -276,6 +284,8 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
                 // Update filtered pulse period
                 if (dt > 0) {
+                	_wss_rr.last_sample_ms = now_ms;  /* RR block, TIM5 CH3 */
+
 					if (_wss_rr.dt == 0) {
 						_wss_rr.dt = dt;
 					} else {

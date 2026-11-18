@@ -141,6 +141,75 @@ void updateTorque(
     torque->power_limit = (uint16_t)(base * (1 - limiter->reduction));
 }
 
+void updateTractionLimiter(Torque *torque, TractionLimiter *tc, Wss *wss, uint8_t in_rtd, uint8_t enabled, uint32_t now_ms) {
+	uint32_t elapsed_ms = now_ms - tc->last_update_ms;
+	tc->last_update_ms = now_ms;
+	float dt = fminf((float)elapsed_ms, TC_MAX_STEP_MS) * 0.001;
+
+	float fl = wss->fl * 0.01;
+	float fr = wss->fr * 0.01;
+	float rl = wss->rl * 0.01;
+	float fr = wss->rr * 0.01;
+	float front_avg = 0.5 * (fl + fr);
+
+	tc->data_valid =
+		wss->fresh_mask == WSS_ALL_FRESH &&
+		fl <= TC_MAX_SPEED_KMH &&
+		fr <= TC_MAX_SPEED_KMH &&
+		rl <= TC_MAX_SPEED_KMH &&
+		rr <= TC_MAX_SPEED_KMH &&
+		 fabsf(fl - fr) <= TC_FRONT_GAP_KMH + TC_FRONT_GAP_FRACTION * front_avg &&
+        rl >= TC_REAR_MIN_FRACTION * fl &&
+        rr >= TC_REAR_MIN_FRACTION * fr;
+
+	uint8_t was_active = tc->active;
+	uint16_t base = torque->power_limit;
+	tc->active = TC_ENABLE &&
+				 in_rtd &&
+				 enabled &&
+				 base > 0 &&
+				 tc->data_valid &&
+				 front_avg >= TC_MIN_SPEED_KMH;
+	tc->slip_pct = 0;
+	float target_reduction = 0;
+
+	if (tc_active) {
+		float slip_left = (rl - fl) / fl;
+		float slip_right = (rr - fr) / fr;
+		tc->slip_pct = 100 * fmaxf(slip_left, slip_right);
+
+		float error = tc->slip_pct - TC_SLIP_REF_PCT;
+		float p = tc->kp * error;
+
+		if (!was_active || elapsed_ms > TC_MAX_STEP_MS) {
+			tc->integral = 0;
+		} else {
+			float i_min = clampUnit(-p);
+			float i_max = clampUnit(1 - p);
+			float next_i = tc->integral + tc->ki * error *dt;
+
+			if (error > 0 && tc->integral < i_max) {
+				tc->integral = fminf(next_i, i_max);
+			} else {
+				tc->integral = fmaxf(next_i, i_min);
+			}
+		}
+
+		target_reduction = clampUnit(p + tc->integral);
+	} else {
+		tc->integral = 0;
+	}
+
+	if (!TC_ENABLE || !in_rtd || base == 0) {
+		tc->reduction = 0;
+	} else {
+		float release_floor = tc->reduction - TC_RELEASE_PER_S * dt;
+		tc->reduction = fmaxf(target_reduction, release_floor);
+	}
+
+	torque->traction_limit = (uint16_t)(base * (1 - tc->reduction));
+}
+
 void updateFaultLEDs(Faults *faults)
 {
 	if (faults->ams) {
@@ -171,6 +240,7 @@ void updateFaultLEDs(Faults *faults)
 		HAL_GPIO_WritePin(BSPD_FAULT_LED_GPIO_Port, BSPD_FAULT_LED_Pin, GPIO_PIN_RESET);
 	}
 }
+
 
 void updateWarningLEDs(OrionData *orion) {
 	// Less Than 50% Charge

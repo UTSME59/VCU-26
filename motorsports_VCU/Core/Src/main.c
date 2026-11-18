@@ -99,6 +99,11 @@ TIM_HandleTypeDef htim7;
     .ki = POWER_KI
 	};
 
+	TractionLimiter tractionLimiter = {
+		.kp = TC_KP,
+		.ki = TC_KI
+	};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -361,10 +366,13 @@ int main(void)
 
 				uint8_t drive_allowed = (carState != FAULT) && !apps_brake_errors.appsBrakePlausibility;
 
-				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, HAL_GetTick());
+				uint32_t now_ms = HAL_GetTick();
 
+				updateTorque(&torque, &throttle, &motor_sample, &battery_sample, &powerLimiter, drive_allowed, now_ms);
+				updateWSS(&wss);
+				updateTractionLimiter(&torque, &tractionLimiter, &wss, carState == RTD, tc_sw, now_ms);
 				sendTorqueCommand(&hcan, &torque, apps_brake_errors.appsBrakePlausibility, carState, CRITICAL);
-				sendTorqueControlLog(&hcan, &torque, &powerLimiter, NOT_CRITICAL);
+				sendTorqueControlLog(&hcan, &torque, NOT_CRITICAL);
 			}
 
 			// Send Brake
