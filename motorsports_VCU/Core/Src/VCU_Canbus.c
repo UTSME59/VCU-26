@@ -70,7 +70,17 @@ void configFilters(CAN_HandleTypeDef *hcan, const uint16_t *idList, uint16_t len
 }
 
 
-volatile uint32_t inverter_tx_skipped = 0;
+/* Live-expression counters */
+volatile uint32_t inverter_tx_skipped = 0;	// 0C0 that wasnt queued
+volatile uint32_t other_tx_skipped    = 0;	// frames dropped that were not torque
+volatile uint32_t other_tx_evicted    = 0;	// how many times other frames were dropped to make room for torque
+
+/* Max polls waiting for a mailbox to free (one 8-byte frame at 1 Mbit/s is ~130 us). */
+#define TORQUE_SLOT_WAIT_POLLS		100U
+#define ALL_TX_MAILBOXES			(CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2)
+
+// this part makes sure 0x0C0 is never skipped
+
 
 void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
            const uint8_t TxData[], uint32_t *TxMailbox,
@@ -80,35 +90,21 @@ void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
     const uint8_t is_torque = (TxHeader->StdId == Tx_TORQUE_ID);
     (void)msgPriority;
 
-    /* All VCU transmitters call this helper from the main loop. */
-    if (torque_mailbox != 0U &&
-        !HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
-        torque_mailbox = 0U;
-    }
-
-    if (is_torque && torque_mailbox != 0U) {
-        /* Last tick's command is still pending. Request cancellation. */
-        HAL_CAN_AbortTxRequest(hcan, torque_mailbox);
-        if (HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
-            inverter_tx_skipped++;
-            return;
+    if (is_torque) {
+        if (torque_mailbox != 0U && HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {		//if last torque frame is still queued, its stale so cancel
+            HAL_CAN_AbortTxRequest(hcan, torque_mailbox);
         }
-        torque_mailbox = 0U;
-    }
 
-    uint32_t free_slots = HAL_CAN_GetTxMailboxesFreeLevel(hcan);
-
-    /* Allow other frames to use the last slot only while torque is still pending. */
-    if (!is_torque && free_slots == 1) {
-    	if (torque_mailbox == 0 ||!HAL_CAN_IsTxMessagePending(hcan, torque_mailbox)) {
-    		return;
-    	}
-	}
-
-    if (free_slots == 0U) {
-        if (is_torque) {
-            inverter_tx_skipped++;
+        if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0U) {									//if theres still no space, cancel logging frames that were queued
+            HAL_CAN_AbortTxRequest(hcan, ALL_TX_MAILBOXES);
+            other_tx_evicted++;
         }
+
+        for (uint32_t i = 0U; i < TORQUE_SLOT_WAIT_POLLS &&									//give time for aborting frames
+             HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0U; i++) {
+        }
+    } else if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0U) {								//for not torque, drop instead of make space, and add count
+        other_tx_skipped++;
         return;
     }
 
@@ -122,17 +118,16 @@ void _send(CAN_HandleTypeDef *hcan, const CAN_TxHeaderTypeDef *TxHeader,
     uint8_t payload[8] = {0};
     memcpy(payload, TxData, header.DLC);
 
-    if (HAL_CAN_AddTxMessage(hcan, &header, payload, TxMailbox) != HAL_OK) {
-        if (is_torque) {
+    if (HAL_CAN_AddTxMessage(hcan, &header, payload, TxMailbox) != HAL_OK) {				//cant even queue frames
+        if (is_torque) {																	//if its the torque frame, very bad
             inverter_tx_skipped++;
         }
         return;
     }
 
     if (is_torque) {
-        torque_mailbox = *TxMailbox;
-    } else if (*TxMailbox == torque_mailbox) {
-        /* Hardware finished the torque frame and HAL reused its mailbox. */
+        torque_mailbox = *TxMailbox;														//if its torque, remember where it was sent
+    } else if (*TxMailbox == torque_mailbox) {												//if logging frame goes into this mailbox, dont send it to where torque went
         torque_mailbox = 0U;
     }
 }
